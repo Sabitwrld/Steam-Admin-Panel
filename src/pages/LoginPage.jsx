@@ -1,26 +1,7 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
-import {
-  Box,
-  Card,
-  CardContent,
-  TextField,
-  Button,
-  Typography,
-  Alert,
-  CircularProgress,
-  Container
-} from '@mui/material';
-import { styled } from '@mui/material/styles';
+import { useNavigate, Link } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
-
-const StyledCard = styled(Card)(({ theme }) => ({
-  maxWidth: 400,
-  width: '100%',
-  margin: '0 auto',
-  boxShadow: theme.shadows[8],
-}));
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -50,13 +31,8 @@ const LoginPage = () => {
 
       if (response.status === 200) {
         const { user, token } = response.data;
-
-        // Check if user has Admin role
         if (user.roles && user.roles.includes('Admin')) {
-          // Store JWT token in localStorage
           localStorage.setItem('authToken', token);
-          
-          // Navigate to dashboard
           navigate('/dashboard');
         } else {
           setErrorMessage('Access denied. Admin role required.');
@@ -64,117 +40,91 @@ const LoginPage = () => {
       }
     } catch (error) {
       console.error('Login error:', error);
-      
-      if (error.response?.data?.message) {
-        setErrorMessage(error.response.data.message);
-      } else if (error.response?.status === 401) {
-        setErrorMessage('Invalid email or password.');
-      } else if (error.response?.status === 403) {
-        setErrorMessage('Access denied. Admin role required.');
-      } else {
-        setErrorMessage('Login failed. Please try again.');
-      }
+      const errorMsg = error.response?.data?.message || 'Invalid email or password.';
+      setErrorMessage(errorMsg);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <Container component="main" maxWidth="sm">
-      <Box
-        sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          minHeight: '100vh',
-          justifyContent: 'center',
-        }}
-      >
-        <StyledCard>
-          <CardContent sx={{ p: 4 }}>
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-              }}
-            >
-              <Typography component="h1" variant="h4" gutterBottom>
-                Steam Admin Panel
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Sign in to your admin account
-              </Typography>
-
-              {errorMessage && (
-                <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
-                  {errorMessage}
-                </Alert>
-              )}
-
-              <Box
-                component="form"
-                onSubmit={handleSubmit(onSubmit)}
-                sx={{ width: '100%' }}
-              >
-                <TextField
-                  {...register('email', {
-                    required: 'Email is required',
-                    pattern: {
-                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                      message: 'Invalid email address',
-                    },
-                  })}
-                  margin="normal"
-                  fullWidth
-                  id="email"
-                  label="Email Address"
-                  name="email"
-                  autoComplete="email"
-                  autoFocus
-                  error={!!errors.email}
-                  helperText={errors.email?.message}
-                />
-
-                <TextField
-                  {...register('password', {
-                    required: 'Password is required',
-                    minLength: {
-                      value: 6,
-                      message: 'Password must be at least 6 characters',
-                    },
-                  })}
-                  margin="normal"
-                  fullWidth
-                  name="password"
-                  label="Password"
-                  type="password"
-                  id="password"
-                  autoComplete="current-password"
-                  error={!!errors.password}
-                  helperText={errors.password?.message}
-                />
-
-                <Button
-                  type="submit"
-                  fullWidth
-                  variant="contained"
-                  sx={{ mt: 3, mb: 2 }}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <CircularProgress size={24} color="inherit" />
-                  ) : (
-                    'Sign In'
-                  )}
-                </Button>
-              </Box>
-            </Box>
-          </CardContent>
-        </StyledCard>
-      </Box>
-    </Container>
+    <div className="bg-gradient-primary" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center' }}>
+      <div className="container">
+        <div className="row justify-content-center">
+          <div className="col-xl-10 col-lg-12 col-md-9">
+            <div className="card o-hidden border-0 shadow-lg my-5">
+              <div className="card-body p-0">
+                <div className="row">
+                  <div className="col-lg-6 d-none d-lg-block bg-login-image"></div>
+                  <div className="col-lg-6">
+                    <div className="p-5">
+                      <div className="text-center">
+                        <h1 className="h4 text-gray-900 mb-4">Welcome Back!</h1>
+                      </div>
+                      {errorMessage && (
+                        <div className="alert alert-danger text-center">{errorMessage}</div>
+                      )}
+                      <form className="user" onSubmit={handleSubmit(onSubmit)}>
+                        <div className="form-group">
+                          <input
+                            type="email"
+                            className={`form-control form-control-user ${errors.email ? 'is-invalid' : ''}`}
+                            placeholder="Enter Email Address..."
+                            {...register('email', {
+                              required: 'Email is required',
+                              pattern: {
+                                value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                                message: 'Invalid email address',
+                              },
+                            })}
+                          />
+                           {errors.email && <div className="invalid-feedback text-center small">{errors.email.message}</div>}
+                        </div>
+                        <div className="form-group">
+                          <input
+                            type="password"
+                            className={`form-control form-control-user ${errors.password ? 'is-invalid' : ''}`}
+                            placeholder="Password"
+                            {...register('password', {
+                              required: 'Password is required',
+                            })}
+                          />
+                           {errors.password && <div className="invalid-feedback text-center small">{errors.password.message}</div>}
+                        </div>
+                        <div className="form-group">
+                          <div className="custom-control custom-checkbox small">
+                            <input type="checkbox" className="custom-control-input" id="customCheck" />
+                            <label className="custom-control-label" htmlFor="customCheck">Remember Me</label>
+                          </div>
+                        </div>
+                        <button type="submit" className="btn btn-primary btn-user btn-block" disabled={isLoading}>
+                          {isLoading ? 'Logging in...' : 'Login'}
+                        </button>
+                        <hr />
+                        {/* --- DƏYİŞİKLİK BURADADIR --- */}
+                        <a href="#" className="btn btn-google btn-user btn-block">
+                          <i className="fab fa-google fa-fw"></i> Login with Google
+                        </a>
+                        <a href="#" className="btn btn-facebook btn-user btn-block">
+                          <i className="fab fa-facebook-f fa-fw"></i> Login with Facebook
+                        </a>
+                      </form>
+                      <hr />
+                      <div className="text-center">
+                        <a className="small" href="#">Forgot Password?</a>
+                      </div>
+                      <div className="text-center">
+                        <a className="small" href="#">Create an Account!</a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

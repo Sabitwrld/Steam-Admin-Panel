@@ -30,8 +30,8 @@ const GenreManagement = () => {
   const fetchGenres = async () => {
     try {
       setLoading(true);
-      const response = await axiosInstance.get('/genre');
-      setGenres(response.data);
+      const response = await axiosInstance.get('/genres'); 
+      setGenres(response.data.data);
     } catch (error) {
       console.error('Error fetching genres:', error);
       setError('Failed to fetch genres');
@@ -55,7 +55,7 @@ const GenreManagement = () => {
       setLoading(true);
       setError('');
       
-      await axiosInstance.post('/genre', {
+      await axiosInstance.post('/genres', { 
         name: newGenreName.trim()
       });
 
@@ -79,7 +79,7 @@ const GenreManagement = () => {
       setLoading(true);
       setError('');
       
-      await axiosInstance.delete(`/genre/${genreId}`);
+      await axiosInstance.delete(`/genres/${genreId}`); 
       fetchGenres();
     } catch (error) {
       console.error('Error deleting genre:', error);

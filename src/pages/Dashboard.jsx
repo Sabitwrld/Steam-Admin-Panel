@@ -1,85 +1,71 @@
 import React from 'react';
-import {
-  Box,
-  Typography,
-  Paper,
-  Grid,
-  Card,
-  CardContent,
-  CardActions,
-  Button
-} from '@mui/material';
-import {
-  People as PeopleIcon,
-  Games as GamesIcon,
-  Campaign as CampaignIcon,
-  Category as CategoryIcon,
-  LocalOffer as LocalOfferIcon
-} from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 const Dashboard = () => {
-  const navigate = useNavigate();
 
-  const quickActions = [
-    { title: 'Users', icon: <PeopleIcon />, path: '/users', color: 'primary' },
-    { title: 'Games', icon: <GamesIcon />, path: '/games', color: 'secondary' },
-    { title: 'Campaigns', icon: <CampaignIcon />, path: '/campaigns', color: 'success' },
-    { title: 'Genres', icon: <CategoryIcon />, path: '/genres', color: 'info' },
-    { title: 'Tags', icon: <LocalOfferIcon />, path: '/tags', color: 'warning' },
+  const cardItems = [
+    { title: 'Users', path: '/users', color: 'primary', icon: 'fa-users' },
+    { title: 'Games', path: '/games', color: 'success', icon: 'fa-gamepad' },
+    { title: 'Campaigns', path: '/campaigns', color: 'info', icon: 'fa-bullhorn' },
+    { title: 'Genres', path: '/genres', color: 'warning', icon: 'fa-theater-masks' },
+    { title: 'Tags', path: '/tags', color: 'danger', icon: 'fa-tags' },
   ];
 
   return (
-    <Box>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Dashboard
-      </Typography>
-      
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Welcome to the Steam Admin Panel
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          You have successfully logged in as an administrator. 
-          This is where you can manage your Steam-related operations.
-        </Typography>
-      </Paper>
+    <>
+      {/* Page Heading */}
+      <div className="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 className="h3 mb-0 text-gray-800">Dashboard</h1>
+        <a href="#" className="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+          <i className="fas fa-download fa-sm text-white-50"></i> Generate Report
+        </a>
+      </div>
 
-      <Typography variant="h5" gutterBottom sx={{ mb: 2 }}>
-        Quick Actions
-      </Typography>
+      {/* Content Row */}
+      <div className="row">
+        {/* Welcome Card */}
+        <div className="col-lg-12 mb-4">
+            <div className="card shadow mb-4">
+                <div className="card-header py-3">
+                    <h6 className="m-0 font-weight-bold text-primary">Welcome to the Steam Admin Panel</h6>
+                </div>
+                <div className="card-body">
+                    <p>You have successfully logged in as an administrator.</p>
+                    <p className="mb-0">This is where you can manage your Steam-related operations using the menu on the left.</p>
+                </div>
+            </div>
+        </div>
+      </div>
       
-      <Grid container spacing={3}>
-        {quickActions.map((action) => (
-          <Grid item xs={12} sm={6} md={4} key={action.title}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <Box sx={{ color: `${action.color}.main`, mr: 1 }}>
-                    {action.icon}
-                  </Box>
-                  <Typography variant="h6" component="div">
-                    {action.title}
-                  </Typography>
-                </Box>
-                <Typography variant="body2" color="text.secondary">
-                  Manage {action.title.toLowerCase()} in your Steam admin panel
-                </Typography>
-              </CardContent>
-              <CardActions>
-                <Button 
-                  size="small" 
-                  color={action.color}
-                  onClick={() => navigate(action.path)}
-                >
-                  Go to {action.title}
-                </Button>
-              </CardActions>
-            </Card>
-          </Grid>
+      <h2 className="h4 mb-3 text-gray-800">Quick Actions</h2>
+      
+      {/* Quick Actions Row */}
+      <div className="row">
+        {cardItems.map((item) => (
+          <div className="col-xl-3 col-md-6 mb-4" key={item.title}>
+            <div className={`card border-left-${item.color} shadow h-100 py-2`}>
+              <div className="card-body">
+                <div className="row no-gutters align-items-center">
+                  <div className="col mr-2">
+                    <div className={`text-xs font-weight-bold text-${item.color} text-uppercase mb-1`}>
+                      {item.title}
+                    </div>
+                    <div className="h5 mb-0 font-weight-bold text-gray-800">
+                      <Link to={item.path} className="text-gray-800 stretched-link" style={{ textDecoration: 'none' }}>
+                        Manage {item.title}
+                      </Link>
+                    </div>
+                  </div>
+                  <div className="col-auto">
+                    <i className={`fas ${item.icon} fa-2x text-gray-300`}></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         ))}
-      </Grid>
-    </Box>
+      </div>
+    </>
   );
 };
 

@@ -1,7 +1,5 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import UserManagement from './pages/UserManagement';
@@ -11,25 +9,9 @@ import GenreManagement from './pages/GenreManagement';
 import TagManagement from './pages/TagManagement';
 import AdminLayout from './layouts/AdminLayout';
 import ProtectedRoute from './components/ProtectedRoute';
-import './App.css';
-
-// Create Material-UI theme
-const theme = createTheme({
-  palette: {
-    mode: 'light',
-    primary: {
-      main: '#1976d2',
-    },
-    secondary: {
-      main: '#dc004e',
-    },
-  },
-});
 
 function App() {
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
       <Router>
         <Routes>
           {/* Public Routes */}
@@ -54,8 +36,7 @@ function App() {
           </Route>
         </Routes>
       </Router>
-    </ThemeProvider>
   );
 }
 
-export default App
+export default App;

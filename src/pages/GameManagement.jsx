@@ -92,24 +92,24 @@ const GameManagement = () => {
   };
 
   // Fetch genres data
-  const fetchGenres = async () => {
+const fetchGenres = async () => {
     try {
-      const response = await axiosInstance.get('/genre');
-      setGenres(response.data);
+      const response = await axiosInstance.get('/genres'); // Dəyişdirildi
+      setGenres(response.data.data); // .data əlavə edildi
     } catch (error) {
       console.error('Error fetching genres:', error);
     }
-  };
+};
 
-  // Fetch tags data
-  const fetchTags = async () => {
+ // Fetch tags data
+const fetchTags = async () => {
     try {
-      const response = await axiosInstance.get('/tag');
-      setTags(response.data);
+      const response = await axiosInstance.get('/tags'); // Dəyişdirildi
+      setTags(response.data.data); // .data əlavə edildi
     } catch (error) {
       console.error('Error fetching tags:', error);
     }
-  };
+};
 
   useEffect(() => {
     fetchGames();

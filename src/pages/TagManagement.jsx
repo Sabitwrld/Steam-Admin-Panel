@@ -30,8 +30,8 @@ const TagManagement = () => {
   const fetchTags = async () => {
     try {
       setLoading(true);
-      const response = await axiosInstance.get('/tag');
-      setTags(response.data);
+      const response = await axiosInstance.get('/tags'); // Dəyişdirildi
+      setTags(response.data.data);
     } catch (error) {
       console.error('Error fetching tags:', error);
       setError('Failed to fetch tags');
@@ -55,7 +55,7 @@ const TagManagement = () => {
       setLoading(true);
       setError('');
       
-      await axiosInstance.post('/tag', {
+      await axiosInstance.post('/tags', { // Dəyişdirildi
         name: newTagName.trim()
       });
 
@@ -79,7 +79,7 @@ const TagManagement = () => {
       setLoading(true);
       setError('');
       
-      await axiosInstance.delete(`/tag/${tagId}`);
+     await axiosInstance.delete(`/tags/${tagId}`); // Dəyişdirildi
       fetchTags();
     } catch (error) {
       console.error('Error deleting tag:', error);
