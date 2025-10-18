@@ -1,404 +1,197 @@
+// src/pages/GameManagement.jsx
+
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Typography,
-  CircularProgress,
-  Alert,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Autocomplete,
-  Chip,
-  DialogContentText,
-} from '@mui/material';
-import {
-  DataGrid,
-  GridToolbar,
-  GridActionsCellItem,
-} from '@mui/x-data-grid';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { Edit as EditIcon, Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
+import { DataGrid } from '@mui/x-data-grid';
+import { Box, Typography, Button, Modal, TextField, IconButton, Paper, Autocomplete, Grid } from '@mui/material';
+import { Edit, Delete } from '@mui/icons-material';
 import axiosInstance from '../api/axiosInstance';
 
+const style = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 600,
+  bgcolor: 'background.paper',
+  border: '2px solid #000',
+  boxShadow: 24,
+  p: 4,
+  maxHeight: '90vh',
+  overflowY: 'auto'
+};
+
+const initialFormData = {
+  id: null,
+  name: '',
+  description: '',
+  releaseDate: '',
+  developer: '',
+  publisher: '',
+  applicationType: '',
+  genreIds: [],
+  tagIds: [],
+};
+
 const GameManagement = () => {
-  const [games, setGames] = useState([]);
-  const [genres, setGenres] = useState([]);
-  const [tags, setTags] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [gameDialogOpen, setGameDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedGame, setSelectedGame] = useState(null);
-  const [gameToDelete, setGameToDelete] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    developer: '',
-    publisher: '',
-    releaseDate: null,
-    price: '',
-    genreIds: [],
-    tagIds: [],
-  });
+    const [games, setGames] = useState([]);
+    const [genres, setGenres] = useState([]);
+    const [tags, setTags] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [modalOpen, setModalOpen] = useState(false);
+    const [formData, setFormData] = useState(initialFormData);
+    const [isEditing, setIsEditing] = useState(false);
 
-  useEffect(() => {
-    fetchGames();
-    fetchGenres();
-    fetchTags();
-  }, []);
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const [gamesRes, genresRes, tagsRes] = await Promise.all([
+                axiosInstance.get('/catalog'),
+                axiosInstance.get('/genres'),
+                axiosInstance.get('/tags'),
+            ]);
+            setGames(gamesRes.data);
+            setGenres(genresRes.data);
+            setTags(tagsRes.data);
+        } catch (error) {
+            console.error("Failed to fetch game data:", error);
+        }
+        setLoading(false);
+    };
 
-  const fetchGames = async () => {
-    try {
-      setLoading(true);
-      const response = await axiosInstance.get('/api/catalog');
-      setGames(response.data);
-    } catch (err) {
-      console.error('Error fetching games:', err);
-      setError('Failed to load games');
-    } finally {
-      setLoading(false);
-    }
-  };
+    useEffect(() => {
+        fetchData();
+    }, []);
 
-  const fetchGenres = async () => {
-    try {
-      const response = await axiosInstance.get('/api/genres');
-      setGenres(response.data);
-    } catch (err) {
-      console.error('Error fetching genres:', err);
-    }
-  };
+    const handleOpenModal = (game = null) => {
+        if (game) {
+            setFormData({
+                id: game.id,
+                name: game.name || '',
+                description: game.description || '',
+                releaseDate: game.releaseDate ? new Date(game.releaseDate).toISOString().split('T')[0] : '',
+                developer: game.developer || '',
+                publisher: game.publisher || '',
+                applicationType: game.applicationType || '',
+                genreIds: game.genres ? game.genres.map(g => g.id) : [],
+                tagIds: game.tags ? game.tags.map(t => t.id) : [],
+            });
+            setIsEditing(true);
+        } else {
+            setFormData(initialFormData);
+            setIsEditing(false);
+        }
+        setModalOpen(true);
+    };
 
-  const fetchTags = async () => {
-    try {
-      const response = await axiosInstance.get('/api/tags');
-      setTags(response.data);
-    } catch (err) {
-      console.error('Error fetching tags:', err);
-    }
-  };
+    const handleCloseModal = () => setModalOpen(false);
 
-  const handleCreateGame = () => {
-    setSelectedGame(null);
-    setFormData({
-      name: '',
-      description: '',
-      developer: '',
-      publisher: '',
-      releaseDate: null,
-      price: '',
-      genreIds: [],
-      tagIds: [],
-    });
-    setGameDialogOpen(true);
-  };
+    const handleFormChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
 
-  const handleEditGame = (game) => {
-    setSelectedGame(game);
-    setFormData({
-      name: game.name || '',
-      description: game.description || '',
-      developer: game.developer || '',
-      publisher: game.publisher || '',
-      releaseDate: game.releaseDate ? new Date(game.releaseDate) : null,
-      price: game.price?.toString() || '',
-      genreIds: game.genreIds || [],
-      tagIds: game.tagIds || [],
-    });
-    setGameDialogOpen(true);
-  };
+    const handleFormSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            if (isEditing) {
+                await axiosInstance.put(`/catalog/${formData.id}`, formData);
+            } else {
+                await axiosInstance.post('/catalog', formData);
+            }
+            fetchData();
+            handleCloseModal();
+        } catch (error) {
+            console.error("Failed to save game:", error);
+        }
+    };
 
-  const handleDeleteGame = (game) => {
-    setGameToDelete(game);
-    setDeleteDialogOpen(true);
-  };
+    const handleDelete = async (id) => {
+        if (window.confirm('Are you sure you want to delete this game?')) {
+            try {
+                await axiosInstance.delete(`/catalog/${id}`);
+                fetchData();
+            } catch (error) {
+                console.error("Failed to delete game:", error);
+            }
+        }
+    };
 
-  const handleSaveGame = async () => {
-    try {
-      setSaving(true);
-      const gameData = {
-        ...formData,
-        price: parseFloat(formData.price),
-        releaseDate: formData.releaseDate?.toISOString(),
-      };
+    const columns = [
+        { field: 'id', headerName: 'ID', width: 250 },
+        { field: 'name', headerName: 'Name', width: 200 },
+        { field: 'developer', headerName: 'Developer', width: 150 },
+        { field: 'publisher', headerName: 'Publisher', width: 150 },
+        {
+            field: 'releaseDate', headerName: 'Release Date', width: 150, type: 'date',
+            valueGetter: ({ value }) => value && new Date(value)
+        },
+        {
+            field: 'actions',
+            headerName: 'Actions',
+            width: 150,
+            renderCell: (params) => (
+                <>
+                    <IconButton onClick={() => handleOpenModal(params.row)}><Edit /></IconButton>
+                    <IconButton onClick={() => handleDelete(params.id)}><Delete /></IconButton>
+                </>
+            ),
+        },
+    ];
 
-      if (selectedGame) {
-        await axiosInstance.put(`/api/catalog/${selectedGame.id}`, gameData);
-      } else {
-        await axiosInstance.post('/api/catalog', gameData);
-      }
-
-      fetchGames();
-      setGameDialogOpen(false);
-    } catch (err) {
-      console.error('Error saving game:', err);
-      setError('Failed to save game');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleConfirmDelete = async () => {
-    try {
-      await axiosInstance.delete(`/api/catalog/${gameToDelete.id}`);
-      fetchGames();
-      setDeleteDialogOpen(false);
-      setGameToDelete(null);
-    } catch (err) {
-      console.error('Error deleting game:', err);
-      setError('Failed to delete game');
-    }
-  };
-
-  const columns = [
-    { field: 'id', headerName: 'ID', width: 90 },
-    { field: 'name', headerName: 'Name', width: 200 },
-    { field: 'developer', headerName: 'Developer', width: 150 },
-    { field: 'publisher', headerName: 'Publisher', width: 150 },
-    {
-      field: 'releaseDate',
-      headerName: 'Release Date',
-      width: 150,
-      renderCell: (params) => 
-        params.value ? new Date(params.value).toLocaleDateString() : '-',
-    },
-    {
-      field: 'price',
-      headerName: 'Price',
-      width: 100,
-      renderCell: (params) => `$${params.value}`,
-    },
-    {
-      field: 'genres',
-      headerName: 'Genres',
-      width: 200,
-      renderCell: (params) => (
-        <Box>
-          {params.row.genres?.map((genre, index) => (
-            <Chip
-              key={index}
-              label={genre.name}
-              size="small"
-              color="primary"
-              sx={{ mr: 0.5, mb: 0.5 }}
-            />
-          ))}
-        </Box>
-      ),
-    },
-    {
-      field: 'actions',
-      type: 'actions',
-      headerName: 'Actions',
-      width: 120,
-      getActions: (params) => [
-        <GridActionsCellItem
-          icon={<EditIcon />}
-          label="Edit"
-          onClick={() => handleEditGame(params.row)}
-        />,
-        <GridActionsCellItem
-          icon={<DeleteIcon />}
-          label="Delete"
-          onClick={() => handleDeleteGame(params.row)}
-        />,
-      ],
-    },
-  ];
-
-  if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress size={60} />
-      </Box>
-    );
-  }
+        <Box sx={{ width: '100%' }}>
+            <Typography variant="h4" gutterBottom>Game Management</Typography>
+            <Button variant="contained" onClick={() => handleOpenModal()} sx={{ mb: 2 }}>
+                Add New Game
+            </Button>
+            <Paper sx={{ height: 650, width: '100%' }}>
+                <DataGrid
+                    rows={games}
+                    columns={columns}
+                    loading={loading}
+                    pageSize={10}
+                    rowsPerPageOptions={[10]}
+                    checkboxSelection
+                />
+            </Paper>
 
-  return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box>
-        <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-          <Typography variant="h4">
-            Game Management
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreateGame}
-          >
-            Create New Game
-          </Button>
+            <Modal open={modalOpen} onClose={handleCloseModal}>
+                <Box sx={style}>
+                    <Typography variant="h6">{isEditing ? 'Edit' : 'Add New'} Game</Typography>
+                    <form onSubmit={handleFormSubmit}>
+                        <Grid container spacing={2}>
+                            <Grid item xs={12}><TextField name="name" label="Name" value={formData.name} onChange={handleFormChange} fullWidth required /></Grid>
+                            <Grid item xs={12}><TextField name="description" label="Description" value={formData.description} onChange={handleFormChange} fullWidth multiline rows={4} /></Grid>
+                            <Grid item xs={6}><TextField name="developer" label="Developer" value={formData.developer} onChange={handleFormChange} fullWidth /></Grid>
+                            <Grid item xs={6}><TextField name="publisher" label="Publisher" value={formData.publisher} onChange={handleFormChange} fullWidth /></Grid>
+                            <Grid item xs={6}><TextField name="releaseDate" label="Release Date" type="date" value={formData.releaseDate} onChange={handleFormChange} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
+                            <Grid item xs={6}><TextField name="applicationType" label="Application Type" value={formData.applicationType} onChange={handleFormChange} fullWidth /></Grid>
+                            <Grid item xs={12}>
+                                <Autocomplete
+                                    multiple
+                                    options={genres}
+                                    getOptionLabel={(option) => option.name}
+                                    value={genres.filter(genre => formData.genreIds.includes(genre.id))}
+                                    onChange={(event, newValue) => setFormData({ ...formData, genreIds: newValue.map(item => item.id) })}
+                                    renderInput={(params) => <TextField {...params} label="Genres" />}
+                                />
+                            </Grid>
+                            <Grid item xs={12}>
+                                <Autocomplete
+                                    multiple
+                                    options={tags}
+                                    getOptionLabel={(option) => option.name}
+                                    value={tags.filter(tag => formData.tagIds.includes(tag.id))}
+                                    onChange={(event, newValue) => setFormData({ ...formData, tagIds: newValue.map(item => item.id) })}
+                                    renderInput={(params) => <TextField {...params} label="Tags" />}
+                                />
+                            </Grid>
+                        </Grid>
+                        <Button type="submit" variant="contained" sx={{ mt: 3 }}>Save Game</Button>
+                    </form>
+                </Box>
+            </Modal>
         </Box>
-        
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
-
-        <Card>
-          <CardContent>
-            <DataGrid
-              rows={games}
-              columns={columns}
-              slots={{ toolbar: GridToolbar }}
-              initialState={{
-                pagination: {
-                  paginationModel: { page: 0, pageSize: 10 },
-                },
-              }}
-              pageSizeOptions={[5, 10, 25]}
-              disableRowSelectionOnClick
-              autoHeight
-            />
-          </CardContent>
-        </Card>
-
-        {/* Game Form Dialog */}
-        <Dialog
-          open={gameDialogOpen}
-          onClose={() => setGameDialogOpen(false)}
-          maxWidth="md"
-          fullWidth
-        >
-          <DialogTitle>
-            {selectedGame ? 'Edit Game' : 'Create New Game'}
-          </DialogTitle>
-          <DialogContent>
-            <Box sx={{ pt: 1 }}>
-              <TextField
-                fullWidth
-                label="Name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                margin="normal"
-                required
-              />
-              <TextField
-                fullWidth
-                label="Description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                margin="normal"
-                multiline
-                rows={3}
-              />
-              <TextField
-                fullWidth
-                label="Developer"
-                value={formData.developer}
-                onChange={(e) => setFormData({ ...formData, developer: e.target.value })}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="Publisher"
-                value={formData.publisher}
-                onChange={(e) => setFormData({ ...formData, publisher: e.target.value })}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="Price"
-                type="number"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                margin="normal"
-                required
-              />
-              <DatePicker
-                label="Release Date"
-                value={formData.releaseDate}
-                onChange={(date) => setFormData({ ...formData, releaseDate: date })}
-                sx={{ mt: 2, width: '100%' }}
-              />
-              <Autocomplete
-                multiple
-                options={genres}
-                getOptionLabel={(option) => option.name}
-                value={genres.filter(genre => formData.genreIds.includes(genre.id))}
-                onChange={(event, newValue) => {
-                  setFormData({
-                    ...formData,
-                    genreIds: newValue.map(genre => genre.id)
-                  });
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Genres"
-                    margin="normal"
-                  />
-                )}
-              />
-              <Autocomplete
-                multiple
-                options={tags}
-                getOptionLabel={(option) => option.name}
-                value={tags.filter(tag => formData.tagIds.includes(tag.id))}
-                onChange={(event, newValue) => {
-                  setFormData({
-                    ...formData,
-                    tagIds: newValue.map(tag => tag.id)
-                  });
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Tags"
-                    margin="normal"
-                  />
-                )}
-              />
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setGameDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveGame}
-              variant="contained"
-              disabled={saving}
-              startIcon={saving ? <CircularProgress size={20} /> : null}
-            >
-              {saving ? 'Saving...' : 'Save'}
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Delete Confirmation Dialog */}
-        <Dialog
-          open={deleteDialogOpen}
-          onClose={() => setDeleteDialogOpen(false)}
-        >
-          <DialogTitle>Delete Game</DialogTitle>
-          <DialogContent>
-            <DialogContentText>
-              Are you sure you want to delete "{gameToDelete?.name}"? This action cannot be undone.
-            </DialogContentText>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setDeleteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleConfirmDelete} color="error" variant="contained">
-              Delete
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </Box>
-    </LocalizationProvider>
-  );
+    );
 };
 
 export default GameManagement;

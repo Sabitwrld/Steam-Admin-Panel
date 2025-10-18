@@ -1,179 +1,162 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Button, Form, Alert } from 'react-bootstrap';
-import SearchableDataTable from '../components/SearchableDataTable';
+// src/pages/CampaignManagement.jsx
+
+import React, { useState, useEffect } from 'react';
+import { DataGrid } from '@mui/x-data-grid';
+import { Box, Typography, Button, Modal, TextField, IconButton, Paper } from '@mui/material';
+import { Edit, Delete } from '@mui/icons-material';
 import axiosInstance from '../api/axiosInstance';
-import { debounce } from 'lodash';
+
+// Modal üçün stil
+const style = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 400,
+  bgcolor: 'background.paper',
+  border: '2px solid #000',
+  boxShadow: 24,
+  p: 4,
+};
 
 const CampaignManagement = () => {
     const [campaigns, setCampaigns] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingCampaign, setEditingCampaign] = useState(null);
+    const [modalOpen, setModalOpen] = useState(false);
+    const [formData, setFormData] = useState({ id: null, name: '', startDate: '', endDate: '' });
+    const [isEditing, setIsEditing] = useState(false);
 
-    const [pagination, setPagination] = useState({
-        currentPage: 1,
-        totalPages: 1,
-        totalCount: 0,
-        pageSize: 10,
-    });
-    const [searchTerm, setSearchTerm] = useState('');
-
-    const fetchCampaigns = useCallback(async (page = 1, size = 10, search = '') => {
+    // Kampaniyaları API-dən çəkmək üçün funksiya
+    const fetchCampaigns = async () => {
         setLoading(true);
         try {
-            const response = await axiosInstance.get('/api/campaign', {
-                params: { pageNumber: page, pageSize: size, searchTerm: search },
-            });
-            const { data, currentPage, totalPages, totalCount, pageSize } = response.data;
-            setCampaigns(data);
-            setPagination({ currentPage, totalPages, totalCount, pageSize });
-            setError('');
-        } catch (err) {
-            setError('Kampaniyaları yükləmək mümkün olmadı.');
-        } finally {
-            setLoading(false);
+            const response = await axiosInstance.get('/store/campaigns');
+            setCampaigns(response.data);
+        } catch (error) {
+            console.error("Failed to fetch campaigns:", error);
         }
-    }, []);
-
-    const debouncedFetch = useCallback(debounce(fetchCampaigns, 300), [fetchCampaigns]);
+        setLoading(false);
+    };
 
     useEffect(() => {
-        debouncedFetch(pagination.currentPage, pagination.pageSize, searchTerm);
-    }, [pagination.currentPage, pagination.pageSize, searchTerm, debouncedFetch]);
-    
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-        setEditingCampaign(null);
-    };
+        fetchCampaigns();
+    }, []);
 
-    const handleCreate = () => {
-        setEditingCampaign({ name: '', description: '', startDate: '', endDate: '' });
-        setIsModalOpen(true);
-    };
-
-    const handleEdit = (campaign) => {
-        setEditingCampaign({
-            ...campaign,
-            startDate: new Date(campaign.startDate).toISOString().slice(0, 16),
-            endDate: new Date(campaign.endDate).toISOString().slice(0, 16),
-        });
-        setIsModalOpen(true);
-    };
-
-    const handleDelete = async (id) => {
-        if (window.confirm('Bu kampaniyanı silmək istədiyinizə əminsiniz?')) {
-            try {
-                await axiosInstance.delete(`/api/campaign/${id}`);
-                fetchCampaigns(pagination.currentPage, pagination.pageSize, searchTerm);
-            } catch (err) {
-                setError('Kampaniyanı silmək mümkün olmadı.');
-            }
+    // Modal pəncərəsini açmaq
+    const handleOpenModal = (campaign = null) => {
+        if (campaign) {
+            // Tarix formatlarını düzgün formata (YYYY-MM-DD) salırıq
+            const startDate = new Date(campaign.startDate).toISOString().split('T')[0];
+            const endDate = new Date(campaign.endDate).toISOString().split('T')[0];
+            setFormData({ id: campaign.id, name: campaign.name, startDate, endDate });
+            setIsEditing(true);
+        } else {
+            setFormData({ id: null, name: '', startDate: '', endDate: '' });
+            setIsEditing(false);
         }
+        setModalOpen(true);
     };
 
-    const handleSave = async () => {
-        const campaignData = {
-            ...editingCampaign,
-            startDate: new Date(editingCampaign.startDate).toISOString(),
-            endDate: new Date(editingCampaign.endDate).toISOString(),
-        };
+    // Modal pəncərəsini bağlamaq
+    const handleCloseModal = () => setModalOpen(false);
 
+    // Formadakı dəyişiklikləri izləmək
+    const handleFormChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    // Formu göndərmək (Yaratmaq və ya Yeniləmək)
+    const handleFormSubmit = async (e) => {
+        e.preventDefault();
         try {
-            if (editingCampaign.id) {
-                await axiosInstance.put(`/api/campaign/${editingCampaign.id}`, campaignData);
+            if (isEditing) {
+                await axiosInstance.put(`/store/campaigns/${formData.id}`, formData);
             } else {
-                await axiosInstance.post('/api/campaign', campaignData);
+                await axiosInstance.post('/store/campaigns', formData);
             }
+            fetchCampaigns(); // Cədvəli yenilə
             handleCloseModal();
-            fetchCampaigns(pagination.currentPage, pagination.pageSize, searchTerm);
-        } catch (err) {
-            const errorMsg = editingCampaign.id ? 'yeniləmək' : 'yaratmaq';
-            setError(`Kampaniyanı ${errorMsg} mümkün olmadı.`);
+        } catch (error) {
+            console.error("Failed to save campaign:", error);
         }
     };
 
+    // Silmə əməliyyatı
+    const handleDelete = async (id) => {
+        if (window.confirm('Are you sure you want to delete this campaign?')) {
+            try {
+                await axiosInstance.delete(`/store/campaigns/${id}`);
+                fetchCampaigns(); // Cədvəli yenilə
+            } catch (error) {
+                console.error("Failed to delete campaign:", error);
+            }
+        }
+    };
+
+    // DataGrid üçün sütunlar
     const columns = [
-        { Header: 'ID', accessor: 'id' },
-        { Header: 'Ad', accessor: 'name' },
-        { Header: 'Başlama Tarixi', accessor: 'startDate', Cell: ({ value }) => new Date(value).toLocaleString() },
-        { Header: 'Bitmə Tarixi', accessor: 'endDate', Cell: ({ value }) => new Date(value).toLocaleString() },
+        { field: 'id', headerName: 'ID', width: 250 },
+        { field: 'name', headerName: 'Campaign Name', width: 250 },
         {
-            Header: 'Əməliyyatlar',
-            accessor: 'actions',
-            Cell: ({ row }) => (
+            field: 'startDate',
+            headerName: 'Start Date',
+            width: 200,
+            type: 'dateTime',
+            valueGetter: ({ value }) => value && new Date(value),
+        },
+        {
+            field: 'endDate',
+            headerName: 'End Date',
+            width: 200,
+            type: 'dateTime',
+            valueGetter: ({ value }) => value && new Date(value),
+        },
+        {
+            field: 'actions',
+            headerName: 'Actions',
+            width: 150,
+            renderCell: (params) => (
                 <>
-                    <Button variant="primary" size="sm" onClick={() => handleEdit(row.original)} className="mr-2">Redaktə</Button>
-                    <Button variant="danger" size="sm" onClick={() => handleDelete(row.original.id)}>Sil</Button>
+                    <IconButton onClick={() => handleOpenModal(params.row)}><Edit /></IconButton>
+                    <IconButton onClick={() => handleDelete(params.id)}><Delete /></IconButton>
                 </>
             ),
         },
     ];
 
     return (
-        <div>
-            <h1 className="h3 mb-2 text-gray-800">Kampaniyaların İdarə Olunması</h1>
-            <p className="mb-4">Yeni kampaniyalar yaradın, mövcud olanları redaktə edin və ya silin.</p>
-            <Button variant="success" onClick={handleCreate} className="mb-3">
-                <i className="fas fa-plus mr-2"></i>Yeni Kampaniya Yarat
+        <Box sx={{ width: '100%' }}>
+            <Typography variant="h4" gutterBottom>
+                Campaign Management
+            </Typography>
+            <Button variant="contained" onClick={() => handleOpenModal()} sx={{ mb: 2 }}>
+                Add New Campaign
             </Button>
-            {error && <Alert variant="danger">{error}</Alert>}
-            <SearchableDataTable
-                columns={columns}
-                data={campaigns}
-                loading={loading}
-                onSearch={setSearchTerm}
-                pagination={pagination}
-                onPageChange={(page) => setPagination(p => ({ ...p, currentPage: page }))}
-            />
+            <Paper sx={{ height: 650, width: '100%' }}>
+                <DataGrid
+                    rows={campaigns}
+                    columns={columns}
+                    pageSize={10}
+                    rowsPerPageOptions={[10]}
+                    checkboxSelection
+                    disableSelectionOnClick
+                    loading={loading}
+                />
+            </Paper>
 
-            <Modal show={isModalOpen} onHide={handleCloseModal}>
-                <Modal.Header closeButton>
-                    <Modal.Title>{editingCampaign?.id ? 'Kampaniyanı Redaktə Et' : 'Yeni Kampaniya Yarat'}</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Form>
-                        <Form.Group>
-                            <Form.Label>Kampaniya Adı</Form.Label>
-                            <Form.Control
-                                type="text"
-                                value={editingCampaign?.name || ''}
-                                onChange={(e) => setEditingCampaign({ ...editingCampaign, name: e.target.value })}
-                            />
-                        </Form.Group>
-                        <Form.Group className="mt-3">
-                            <Form.Label>Açıqlama</Form.Label>
-                            <Form.Control
-                                as="textarea"
-                                rows={3}
-                                value={editingCampaign?.description || ''}
-                                onChange={(e) => setEditingCampaign({ ...editingCampaign, description: e.target.value })}
-                            />
-                        </Form.Group>
-                        <Form.Group className="mt-3">
-                            <Form.Label>Başlama Tarixi</Form.Label>
-                            <Form.Control
-                                type="datetime-local"
-                                value={editingCampaign?.startDate || ''}
-                                onChange={(e) => setEditingCampaign({ ...editingCampaign, startDate: e.target.value })}
-                            />
-                        </Form.Group>
-                        <Form.Group className="mt-3">
-                            <Form.Label>Bitmə Tarixi</Form.Label>
-                            <Form.Control
-                                type="datetime-local"
-                                value={editingCampaign?.endDate || ''}
-                                onChange={(e) => setEditingCampaign({ ...editingCampaign, endDate: e.target.value })}
-                            />
-                        </Form.Group>
-                    </Form>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={handleCloseModal}>Bağla</Button>
-                    <Button variant="primary" onClick={handleSave}>Yadda Saxla</Button>
-                </Modal.Footer>
+            {/* Yaratma/Redaktə Modalı */}
+            <Modal open={modalOpen} onClose={handleCloseModal}>
+                <Box sx={style}>
+                    <Typography variant="h6">{isEditing ? 'Edit' : 'Add New'} Campaign</Typography>
+                    <form onSubmit={handleFormSubmit}>
+                        <TextField name="name" label="Campaign Name" value={formData.name} onChange={handleFormChange} fullWidth margin="normal" required />
+                        <TextField name="startDate" label="Start Date" type="date" value={formData.startDate} onChange={handleFormChange} fullWidth margin="normal" InputLabelProps={{ shrink: true }} required />
+                        <TextField name="endDate" label="End Date" type="date" value={formData.endDate} onChange={handleFormChange} fullWidth margin="normal" InputLabelProps={{ shrink: true }} required />
+                        <Button type="submit" variant="contained" sx={{ mt: 2 }}>Save</Button>
+                    </form>
+                </Box>
             </Modal>
-        </div>
+        </Box>
     );
 };
 

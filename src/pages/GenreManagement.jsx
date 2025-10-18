@@ -1,236 +1,141 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Typography,
-  CircularProgress,
-  Alert,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  DialogContentText,
-} from '@mui/material';
-import {
-  DataGrid,
-  GridToolbar,
-  GridActionsCellItem,
-} from '@mui/x-data-grid';
-import { Edit as EditIcon, Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
+import { DataGrid } from '@mui/x-data-grid';
+import { Box, Typography, Button, Modal, TextField, IconButton, Paper } from '@mui/material';
+import { Edit, Delete } from '@mui/icons-material';
 import axiosInstance from '../api/axiosInstance';
 
+const style = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 400,
+  bgcolor: 'background.paper',
+  border: '2px solid #000',
+  boxShadow: 24,
+  p: 4,
+};
+
 const GenreManagement = () => {
-  const [genres, setGenres] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [genreDialogOpen, setGenreDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedGenre, setSelectedGenre] = useState(null);
-  const [genreToDelete, setGenreToDelete] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-  });
+    const [genres, setGenres] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [modalOpen, setModalOpen] = useState(false);
+    const [formData, setFormData] = useState({ id: null, name: '' });
+    const [isEditing, setIsEditing] = useState(false);
 
-  useEffect(() => {
-  const fetchGenres = async () => {
-    setLoading(true);
-    try {
-      // Düzəliş: Sorğu axiosInstance ilə olmalıdır
-      const response = await axiosInstance.get('/genres');
-      // Düzəliş: Məlumatı response.data-dan götürün
-      setGenres(response.data); 
-    } catch (error) {
-      console.error("Failed to fetch genres:", error);
-    }
-    setLoading(false);
-  };
+    const fetchGenres = async () => {
+        setLoading(true);
+        try {
+            const response = await axiosInstance.get('/genres');
+            setGenres(response.data);
+        } catch (error) {
+            console.error("Failed to fetch genres:", error);
+        }
+        setLoading(false);
+    };
 
-  fetchGenres();
-}, []);
+    useEffect(() => {
+        fetchGenres();
+    }, []);
 
-  const handleCreateGenre = () => {
-    setSelectedGenre(null);
-    setFormData({ name: '' });
-    setGenreDialogOpen(true);
-  };
+    const handleOpenModal = (genre = null) => {
+        if (genre) {
+            setFormData({ id: genre.id, name: genre.name });
+            setIsEditing(true);
+        } else {
+            setFormData({ id: null, name: '' });
+            setIsEditing(false);
+        }
+        setModalOpen(true);
+    };
 
-  const handleEditGenre = (genre) => {
-    setSelectedGenre(genre);
-    setFormData({ name: genre.name });
-    setGenreDialogOpen(true);
-  };
+    const handleCloseModal = () => setModalOpen(false);
 
-  const handleDeleteGenre = (genre) => {
-    setGenreToDelete(genre);
-    setDeleteDialogOpen(true);
-  };
+    const handleFormChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
 
-  const handleSaveGenre = async () => {
-    try {
-      setSaving(true);
-      
-      if (selectedGenre) {
-        await axiosInstance.put(`/api/genres/${selectedGenre.id}`, formData);
-      } else {
-        await axiosInstance.post('/api/genres', formData);
-      }
+    const handleFormSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            if (isEditing) {
+                await axiosInstance.put(`/genres/${formData.id}`, { name: formData.name });
+            } else {
+                await axiosInstance.post('/genres', { name: formData.name });
+            }
+            fetchGenres();
+            handleCloseModal();
+        } catch (error) {
+            console.error("Failed to save genre:", error);
+        }
+    };
 
-      fetchGenres();
-      setGenreDialogOpen(false);
-    } catch (err) {
-      console.error('Error saving genre:', err);
-      setError('Failed to save genre');
-    } finally {
-      setSaving(false);
-    }
-  };
+    const handleDelete = async (id) => {
+        if (window.confirm('Are you sure you want to delete this genre?')) {
+            try {
+                await axiosInstance.delete(`/genres/${id}`);
+                fetchGenres();
+            } catch (error) {
+                console.error("Failed to delete genre:", error);
+            }
+        }
+    };
 
-  const handleConfirmDelete = async () => {
-    try {
-      await axiosInstance.delete(`/api/genres/${genreToDelete.id}`);
-      fetchGenres();
-      setDeleteDialogOpen(false);
-      setGenreToDelete(null);
-    } catch (err) {
-      console.error('Error deleting genre:', err);
-      setError('Failed to delete genre');
-    }
-  };
+    const columns = [
+        { field: 'id', headerName: 'ID', width: 300 },
+        { field: 'name', headerName: 'Name', width: 300, editable: true },
+        {
+            field: 'actions',
+            headerName: 'Actions',
+            width: 150,
+            renderCell: (params) => (
+                <>
+                    <IconButton onClick={() => handleOpenModal(params.row)}><Edit /></IconButton>
+                    <IconButton onClick={() => handleDelete(params.id)}><Delete /></IconButton>
+                </>
+            ),
+        },
+    ];
 
-  const columns = [
-    { field: 'id', headerName: 'ID', width: 90 },
-    { field: 'name', headerName: 'Name', width: 300 },
-    {
-      field: 'actions',
-      type: 'actions',
-      headerName: 'Actions',
-      width: 120,
-      getActions: (params) => [
-        <GridActionsCellItem
-          icon={<EditIcon />}
-          label="Edit"
-          onClick={() => handleEditGenre(params.row)}
-        />,
-        <GridActionsCellItem
-          icon={<DeleteIcon />}
-          label="Delete"
-          onClick={() => handleDeleteGenre(params.row)}
-        />,
-      ],
-    },
-  ];
-
-  if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress size={60} />
-      </Box>
+        <Box sx={{ width: '100%' }}>
+            <Typography variant="h4" gutterBottom>
+                Genre Management
+            </Typography>
+            <Button variant="contained" onClick={() => handleOpenModal()} sx={{ mb: 2 }}>
+                Add New Genre
+            </Button>
+            <Paper sx={{ height: 650, width: '100%' }}>
+                <DataGrid
+                    rows={genres}
+                    columns={columns}
+                    pageSize={10}
+                    rowsPerPageOptions={[10]}
+                    checkboxSelection
+                    disableSelectionOnClick
+                    loading={loading}
+                />
+            </Paper>
+
+            <Modal open={modalOpen} onClose={handleCloseModal}>
+                <Box sx={style}>
+                    <Typography variant="h6">{isEditing ? 'Edit' : 'Add New'} Genre</Typography>
+                    <form onSubmit={handleFormSubmit}>
+                        <TextField
+                            name="name"
+                            label="Genre Name"
+                            value={formData.name}
+                            onChange={handleFormChange}
+                            fullWidth
+                            margin="normal"
+                            required
+                        />
+                        <Button type="submit" variant="contained" sx={{ mt: 2 }}>Save</Button>
+                    </form>
+                </Box>
+            </Modal>
+        </Box>
     );
-  }
-
-  return (
-    <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-        <Typography variant="h4">
-          Genre Management
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleCreateGenre}
-        >
-          Create New Genre
-        </Button>
-      </Box>
-      
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-
-      <Card>
-        <CardContent>
-          <DataGrid
-            rows={genres}
-            columns={columns}
-            slots={{ toolbar: GridToolbar }}
-            initialState={{
-              pagination: {
-                paginationModel: { page: 0, pageSize: 10 },
-              },
-            }}
-            pageSizeOptions={[5, 10, 25]}
-            disableRowSelectionOnClick
-            autoHeight
-          />
-        </CardContent>
-      </Card>
-
-      {/* Genre Form Dialog */}
-      <Dialog
-        open={genreDialogOpen}
-        onClose={() => setGenreDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          {selectedGenre ? 'Edit Genre' : 'Create New Genre'}
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 1 }}>
-            <TextField
-              fullWidth
-              label="Name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              margin="normal"
-              required
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setGenreDialogOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSaveGenre}
-            variant="contained"
-            disabled={saving || !formData.name.trim()}
-            startIcon={saving ? <CircularProgress size={20} /> : null}
-          >
-            {saving ? 'Saving...' : 'Save'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
-        <DialogTitle>Delete Genre</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to delete "{genreToDelete?.name}"? This action cannot be undone.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleConfirmDelete} color="error" variant="contained">
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
-  );
 };
 
 export default GenreManagement;
