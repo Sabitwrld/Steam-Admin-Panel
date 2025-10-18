@@ -1,115 +1,236 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Typography,
+  CircularProgress,
+  Alert,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  DialogContentText,
+} from '@mui/material';
+import {
+  DataGrid,
+  GridToolbar,
+  GridActionsCellItem,
+} from '@mui/x-data-grid';
+import { Edit as EditIcon, Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
 import axiosInstance from '../api/axiosInstance';
-import { useForm } from 'react-hook-form';
-import { toast } from 'react-toastify';
-import SearchableDataTable from '../components/SearchableDataTable';
 
 const TagManagement = () => {
-    const [tags, setTags] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [showModal, setShowModal] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
-    const [currentTag, setCurrentTag] = useState(null);
-    const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
+  const [tags, setTags] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [tagDialogOpen, setTagDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedTag, setSelectedTag] = useState(null);
+  const [tagToDelete, setTagToDelete] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+  });
 
-    const fetchTags = async () => {
-        try {
-            setLoading(true);
-            const response = await axiosInstance.get('/tag/paged', { params: { PageSize: 1000 } });
-            setTags(response.data.data || []);
-        } catch (err) {
-            toast.error('Teqləri yükləmək mümkün olmadı.');
-        } finally {
-            setLoading(false);
-        }
-    };
+  useEffect(() => {
+    fetchTags();
+  }, []);
 
-    useEffect(() => {
-        fetchTags();
-    }, []);
+  const fetchTags = async () => {
+    try {
+      setLoading(true);
+      const response = await axiosInstance.get('/api/tags');
+      setTags(response.data);
+    } catch (err) {
+      console.error('Error fetching tags:', err);
+      setError('Failed to load tags');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const handleShowModal = (tag = null) => {
-        reset();
-        if (tag) {
-            setIsEditing(true);
-            setCurrentTag(tag);
-            setValue('name', tag.name);
-        } else {
-            setIsEditing(false);
-            setCurrentTag(null);
-        }
-        setShowModal(true);
-    };
+  const handleCreateTag = () => {
+    setSelectedTag(null);
+    setFormData({ name: '' });
+    setTagDialogOpen(true);
+  };
 
-    const handleCloseModal = () => setShowModal(false);
+  const handleEditTag = (tag) => {
+    setSelectedTag(tag);
+    setFormData({ name: tag.name });
+    setTagDialogOpen(true);
+  };
 
-    const onSubmit = async (data) => {
-        try {
-            if (isEditing) {
-                await axiosInstance.put(`/tag`, { id: currentTag.id, ...data });
-                toast.success("Teq uğurla yeniləndi!");
-            } else {
-                await axiosInstance.post('/tag', data);
-                toast.success("Yeni teq uğurla yaradıldı!");
-            }
-            fetchTags();
-            handleCloseModal();
-        } catch (err) {
-            toast.error("Əməliyyat zamanı xəta baş verdi.");
-        }
-    };
-    
-    const handleDelete = async (id) => {
-        if (window.confirm('Bu teqi silməyə əminsiniz?')) {
-            try {
-                await axiosInstance.delete(`/tag/${id}`);
-                toast.success('Teq uğurla silindi.');
-                fetchTags();
-            } catch (err) {
-                toast.error('Teqi silmək mümkün olmadı.');
-            }
-        }
-    };
+  const handleDeleteTag = (tag) => {
+    setTagToDelete(tag);
+    setDeleteDialogOpen(true);
+  };
 
-    const columns = [
-        { key: 'name', header: 'Ad', sortable: true },
-        { key: 'actions', header: 'Əməliyyatlar', render: (item) => (
-            <>
-                <button className="btn btn-warning btn-sm mr-2" onClick={() => handleShowModal(item)}><i className="fas fa-edit"></i></button>
-                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(item.id)}><i className="fas fa-trash"></i></button>
-            </>
-        )}
-    ];
+  const handleSaveTag = async () => {
+    try {
+      setSaving(true);
+      
+      if (selectedTag) {
+        await axiosInstance.put(`/api/tags/${selectedTag.id}`, formData);
+      } else {
+        await axiosInstance.post('/api/tags', formData);
+      }
 
+      fetchTags();
+      setTagDialogOpen(false);
+    } catch (err) {
+      console.error('Error saving tag:', err);
+      setError('Failed to save tag');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    try {
+      await axiosInstance.delete(`/api/tags/${tagToDelete.id}`);
+      fetchTags();
+      setDeleteDialogOpen(false);
+      setTagToDelete(null);
+    } catch (err) {
+      console.error('Error deleting tag:', err);
+      setError('Failed to delete tag');
+    }
+  };
+
+  const columns = [
+    { field: 'id', headerName: 'ID', width: 90 },
+    { field: 'name', headerName: 'Name', width: 300 },
+    {
+      field: 'actions',
+      type: 'actions',
+      headerName: 'Actions',
+      width: 120,
+      getActions: (params) => [
+        <GridActionsCellItem
+          icon={<EditIcon />}
+          label="Edit"
+          onClick={() => handleEditTag(params.row)}
+        />,
+        <GridActionsCellItem
+          icon={<DeleteIcon />}
+          label="Delete"
+          onClick={() => handleDeleteTag(params.row)}
+        />,
+      ],
+    },
+  ];
+
+  if (loading) {
     return (
-        <div>
-            <h1 className="h3 mb-4 text-gray-800">Teqlərin İdarə Olunması</h1>
-            <SearchableDataTable data={tags} columns={columns} loading={loading} title="Teq Siyahısı" onAddClick={() => handleShowModal()} />
-
-            <div className={`modal fade ${showModal ? 'show d-block' : ''}`} tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-                <div className="modal-dialog">
-                    <div className="modal-content">
-                        <div className="modal-header">
-                            <h5 className="modal-title">{isEditing ? 'Teqi Redaktə Et' : 'Yeni Teq Yarat'}</h5>
-                            <button type="button" className="close" onClick={handleCloseModal}><span>&times;</span></button>
-                        </div>
-                        <form onSubmit={handleSubmit(onSubmit)}>
-                            <div className="modal-body">
-                                <div className="form-group">
-                                    <label>Teq Adı</label>
-                                    <input type="text" className={`form-control ${errors.name ? 'is-invalid' : ''}`} {...register('name', { required: 'Ad məcburidir' })} />
-                                </div>
-                            </div>
-                            <div className="modal-footer">
-                                <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>Bağla</button>
-                                <button type="submit" className="btn btn-primary">Yadda Saxla</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress size={60} />
+      </Box>
     );
+  }
+
+  return (
+    <Box>
+      <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+        <Typography variant="h4">
+          Tag Management
+        </Typography>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleCreateTag}
+        >
+          Create New Tag
+        </Button>
+      </Box>
+      
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
+
+      <Card>
+        <CardContent>
+          <DataGrid
+            rows={tags}
+            columns={columns}
+            slots={{ toolbar: GridToolbar }}
+            initialState={{
+              pagination: {
+                paginationModel: { page: 0, pageSize: 10 },
+              },
+            }}
+            pageSizeOptions={[5, 10, 25]}
+            disableRowSelectionOnClick
+            autoHeight
+          />
+        </CardContent>
+      </Card>
+
+      {/* Tag Form Dialog */}
+      <Dialog
+        open={tagDialogOpen}
+        onClose={() => setTagDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          {selectedTag ? 'Edit Tag' : 'Create New Tag'}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            <TextField
+              fullWidth
+              label="Name"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              margin="normal"
+              required
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTagDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSaveTag}
+            variant="contained"
+            disabled={saving || !formData.name.trim()}
+            startIcon={saving ? <CircularProgress size={20} /> : null}
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+      >
+        <DialogTitle>Delete Tag</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete "{tagToDelete?.name}"? This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleConfirmDelete} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
 };
 
 export default TagManagement;

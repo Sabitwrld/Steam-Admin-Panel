@@ -1,138 +1,148 @@
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import axiosInstance from '../api/axiosInstance';
-import { GoogleLogin } from '@react-oauth/google';
+import {
+  Box,
+  Card,
+  CardContent,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  CircularProgress,
+  Container,
+  Paper,
+} from '@mui/material';
+import { Login as LoginIcon } from '@mui/icons-material';
 
 const LoginPage = () => {
-  const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const navigate = useNavigate();
+    const { loginAction, isAuthenticated } = useAuth();
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm();
-
-  const handleBackendLogin = async (token) => {
-    localStorage.setItem('authToken', token);
-    // Tokeni yoxlamaq üçün kiçik bir sorğu göndərə bilərik və ya birbaşa yönləndirə bilərik.
-    // Təhlükəsizlik üçün istifadəçi məlumatlarını alıb rolu yoxlamaq daha yaxşıdır.
-    try {
-        const response = await axiosInstance.get('/auth/me'); // Backend-də belə bir endpoint olmalıdır.
-        if (response.data.roles && response.data.roles.includes('Admin')) {
-            navigate('/dashboard');
-        } else {
-             setErrorMessage('Access denied. Admin role required.');
-             localStorage.removeItem('authToken');
+    // Redirect if already authenticated
+    useEffect(() => {
+        if (isAuthenticated) {
+            navigate('/', { replace: true });
         }
-    } catch(e) {
-        setErrorMessage('Failed to verify user role.');
-        localStorage.removeItem('authToken');
-    }
-  };
+    }, [isAuthenticated, navigate]);
 
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        setError('');
+        setLoading(true);
+        
+        try {
+            const response = await axiosInstance.post('/api/auth/login', { email, password });
+            const { token, user } = response.data;
 
-  const onSubmit = async (data) => {
-    setIsLoading(true);
-    setErrorMessage('');
-    try {
-      const response = await axiosInstance.post('/auth/login', data);
-      if (response.status === 200 && response.data.token) {
-        handleBackendLogin(response.data.token);
-      }
-    } catch (error) {
-      const errorMsg = error.response?.data?.message || 'Invalid email or password.';
-      setErrorMessage(errorMsg);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  const handleGoogleSuccess = async (credentialResponse) => {
-    setIsLoading(true);
-    setErrorMessage('');
-    try {
-        const response = await axiosInstance.post('/auth/externallogin', {
-            provider: 'Google',
-            idToken: credentialResponse.credential,
-        });
-        if (response.status === 200 && response.data.token) {
-            handleBackendLogin(response.data.token);
+            if (user && user.roles && user.roles.includes('Admin')) {
+                // Set authorization header for future requests
+                axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+                
+                // Use AuthContext to handle login
+                const result = await loginAction({ token, user });
+                
+                if (result.success) {
+                    navigate('/', { replace: true });
+                } else {
+                    setError('Giriş zamanı xəta baş verdi.');
+                }
+            } else {
+                setError('Yalnız adminlər daxil ola bilər.');
+            }
+        } catch (err) {
+            setError('E-poçt və ya şifrə yanlışdır.');
+            console.error(err);
+        } finally {
+            setLoading(false);
         }
-    } catch (error) {
-        const errorMsg = error.response?.data?.message || 'Google login failed.';
-        setErrorMessage(errorMsg);
-    } finally {
-        setIsLoading(false);
-    }
-  };
+    };
 
-  const handleGoogleError = () => {
-    setErrorMessage('Google login failed. Please try again.');
-  };
-
-  return (
-    <div className="bg-gradient-primary" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center' }}>
-      <div className="container">
-        <div className="row justify-content-center">
-          <div className="col-xl-10 col-lg-12 col-md-9">
-            <div className="card o-hidden border-0 shadow-lg my-5">
-              <div className="card-body p-0">
-                <div className="row">
-                  <div className="col-lg-6 d-none d-lg-block bg-login-image"></div>
-                  <div className="col-lg-6">
-                    <div className="p-5">
-                      <div className="text-center">
-                        <h1 className="h4 text-gray-900 mb-4">Welcome Back!</h1>
-                      </div>
-                      {errorMessage && (
-                        <div className="alert alert-danger text-center small p-2 mb-3">{errorMessage}</div>
-                      )}
-                      <form className="user" onSubmit={handleSubmit(onSubmit)}>
-                        <div className="form-group">
-                          <input
-                            type="email"
-                            className={`form-control form-control-user ${errors.email ? 'is-invalid' : ''}`}
-                            placeholder="Enter Email Address..."
-                            {...register('email', { required: 'Email is required' })}
-                          />
-                        </div>
-                        <div className="form-group">
-                          <input
-                            type="password"
-                            className={`form-control form-control-user ${errors.password ? 'is-invalid' : ''}`}
-                            placeholder="Password"
-                            {...register('password', { required: 'Password is required' })}
-                          />
-                        </div>
-                        <button type="submit" className="btn btn-primary btn-user btn-block" disabled={isLoading}>
-                          {isLoading ? 'Logging in...' : 'Login'}
-                        </button>
-                        <hr />
-                         <div className="d-flex justify-content-center">
-                            <GoogleLogin
-                                onSuccess={handleGoogleSuccess}
-                                onError={handleGoogleError}
-                                useOneTap
+    return (
+        <Container component="main" maxWidth="sm">
+            <Box
+                sx={{
+                    marginTop: 8,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                }}
+            >
+                <Paper elevation={3} sx={{ padding: 4, width: '100%' }}>
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Avatar sx={{ m: 1, bgcolor: 'primary.main' }}>
+                            <LoginIcon />
+                        </Avatar>
+                        <Typography component="h1" variant="h4" sx={{ mb: 3 }}>
+                            Welcome to Steam Admin
+                        </Typography>
+                        
+                        {error && (
+                            <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
+                                {error}
+                            </Alert>
+                        )}
+                        
+                        <Box component="form" onSubmit={handleLogin} sx={{ width: '100%' }}>
+                            <TextField
+                                margin="normal"
+                                required
+                                fullWidth
+                                id="email"
+                                label="Email Address"
+                                name="email"
+                                autoComplete="email"
+                                autoFocus
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
                             />
-                         </div>
-                      </form>
-                      <hr />
-                      <div className="text-center">
-                        <Link className="small" to="/forgot-password">Forgot Password?</Link>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+                            <TextField
+                                margin="normal"
+                                required
+                                fullWidth
+                                name="password"
+                                label="Password"
+                                type="password"
+                                id="password"
+                                autoComplete="current-password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                            />
+                            <Button
+                                type="submit"
+                                fullWidth
+                                variant="contained"
+                                sx={{ mt: 3, mb: 2 }}
+                                disabled={loading}
+                                startIcon={loading ? <CircularProgress size={20} /> : <LoginIcon />}
+                            >
+                                {loading ? 'Signing in...' : 'Sign In'}
+                            </Button>
+                            
+                            <Box textAlign="center" sx={{ mt: 2 }}>
+                                <Link to="/forgot-password" style={{ textDecoration: 'none' }}>
+                                    <Typography variant="body2" color="primary">
+                                        Forgot your password?
+                                    </Typography>
+                                </Link>
+                            </Box>
+                        </Box>
+                    </Box>
+                </Paper>
+            </Box>
+        </Container>
+    );
 };
 
 export default LoginPage;

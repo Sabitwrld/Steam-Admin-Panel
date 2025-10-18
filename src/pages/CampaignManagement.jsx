@@ -1,151 +1,178 @@
-import React, { useState, useEffect } from 'react';
-import axiosInstance from '../api/axiosInstance';
-import { useForm } from 'react-hook-form';
-import { toast } from 'react-toastify';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Modal, Button, Form, Alert } from 'react-bootstrap';
 import SearchableDataTable from '../components/SearchableDataTable';
+import axiosInstance from '../api/axiosInstance';
+import { debounce } from 'lodash';
 
 const CampaignManagement = () => {
     const [campaigns, setCampaigns] = useState([]);
     const [loading, setLoading] = useState(true);
-    
-    const [showModal, setShowModal] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
-    const [currentCampaign, setCurrentCampaign] = useState(null);
+    const [error, setError] = useState('');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingCampaign, setEditingCampaign] = useState(null);
 
-    const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
+    const [pagination, setPagination] = useState({
+        currentPage: 1,
+        totalPages: 1,
+        totalCount: 0,
+        pageSize: 10,
+    });
+    const [searchTerm, setSearchTerm] = useState('');
 
-    const fetchCampaigns = async () => {
+    const fetchCampaigns = useCallback(async (page = 1, size = 10, search = '') => {
+        setLoading(true);
         try {
-            setLoading(true);
-            // DÜZƏLİŞ: URL '/campaigns/paged' -> '/campaign/paged'
-            const response = await axiosInstance.get('/campaign/paged', { params: { PageSize: 1000 } });
-            setCampaigns(response.data.data || []);
+            const response = await axiosInstance.get('/api/campaign', {
+                params: { pageNumber: page, pageSize: size, searchTerm: search },
+            });
+            const { data, currentPage, totalPages, totalCount, pageSize } = response.data;
+            setCampaigns(data);
+            setPagination({ currentPage, totalPages, totalCount, pageSize });
+            setError('');
         } catch (err) {
-            toast.error('Kampaniyaları yükləmək mümkün olmadı.');
+            setError('Kampaniyaları yükləmək mümkün olmadı.');
         } finally {
             setLoading(false);
         }
-    };
-
-    useEffect(() => {
-        fetchCampaigns();
     }, []);
 
-    const handleShowModal = (campaign = null) => {
-        reset();
-        if (campaign) {
-            setIsEditing(true);
-            setCurrentCampaign(campaign);
-            setValue('name', campaign.name);
-            setValue('description', campaign.description);
-            setValue('discount', campaign.discount);
-            setValue('startDate', new Date(campaign.startDate).toISOString().slice(0, 16));
-            setValue('endDate', new Date(campaign.endDate).toISOString().slice(0, 16));
-        } else {
-            setIsEditing(false);
-            setCurrentCampaign(null);
-        }
-        setShowModal(true);
+    const debouncedFetch = useCallback(debounce(fetchCampaigns, 300), [fetchCampaigns]);
+
+    useEffect(() => {
+        debouncedFetch(pagination.currentPage, pagination.pageSize, searchTerm);
+    }, [pagination.currentPage, pagination.pageSize, searchTerm, debouncedFetch]);
+    
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setEditingCampaign(null);
     };
 
-    const handleCloseModal = () => setShowModal(false);
+    const handleCreate = () => {
+        setEditingCampaign({ name: '', description: '', startDate: '', endDate: '' });
+        setIsModalOpen(true);
+    };
 
-    const onSubmit = async (data) => {
-        const payload = {
-            ...data,
-            discount: parseFloat(data.discount),
-            startDate: new Date(data.startDate).toISOString(),
-            endDate: new Date(data.endDate).toISOString()
+    const handleEdit = (campaign) => {
+        setEditingCampaign({
+            ...campaign,
+            startDate: new Date(campaign.startDate).toISOString().slice(0, 16),
+            endDate: new Date(campaign.endDate).toISOString().slice(0, 16),
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleDelete = async (id) => {
+        if (window.confirm('Bu kampaniyanı silmək istədiyinizə əminsiniz?')) {
+            try {
+                await axiosInstance.delete(`/api/campaign/${id}`);
+                fetchCampaigns(pagination.currentPage, pagination.pageSize, searchTerm);
+            } catch (err) {
+                setError('Kampaniyanı silmək mümkün olmadı.');
+            }
+        }
+    };
+
+    const handleSave = async () => {
+        const campaignData = {
+            ...editingCampaign,
+            startDate: new Date(editingCampaign.startDate).toISOString(),
+            endDate: new Date(editingCampaign.endDate).toISOString(),
         };
 
         try {
-            if (isEditing) {
-                 // DÜZƏLİŞ: URL '/campaigns' -> '/campaign'
-                await axiosInstance.put(`/campaign`, { id: currentCampaign.id, ...payload });
-                toast.success("Kampaniya uğurla yeniləndi!");
+            if (editingCampaign.id) {
+                await axiosInstance.put(`/api/campaign/${editingCampaign.id}`, campaignData);
             } else {
-                 // DÜZƏLİŞ: URL '/campaigns' -> '/campaign'
-                await axiosInstance.post('/campaign', payload);
-                toast.success("Yeni kampaniya uğurla yaradıldı!");
+                await axiosInstance.post('/api/campaign', campaignData);
             }
-            fetchCampaigns();
             handleCloseModal();
+            fetchCampaigns(pagination.currentPage, pagination.pageSize, searchTerm);
         } catch (err) {
-            toast.error("Əməliyyat zamanı xəta baş verdi.");
-        }
-    };
-    
-    const handleDelete = async (id) => {
-        if (window.confirm('Bu kampaniyanı silməyə əminsiniz?')) {
-            try {
-                // DÜZƏLİŞ: URL '/campaigns/' -> '/campaign/'
-                await axiosInstance.delete(`/campaign/${id}`);
-                toast.success('Kampaniya uğurla silindi.');
-                fetchCampaigns();
-            } catch (err) {
-                toast.error('Kampaniyanı silmək mümkün olmadı.');
-            }
+            const errorMsg = editingCampaign.id ? 'yeniləmək' : 'yaratmaq';
+            setError(`Kampaniyanı ${errorMsg} mümkün olmadı.`);
         }
     };
 
     const columns = [
-        { key: 'name', header: 'Ad', sortable: true },
-        { key: 'discount', header: 'Endirim (%)', sortable: true },
-        { key: 'startDate', header: 'Başlanğıc', sortable: true, render: (item) => new Date(item.startDate).toLocaleDateString() },
-        { key: 'endDate', header: 'Bitiş', sortable: true, render: (item) => new Date(item.endDate).toLocaleDateString() },
-        { key: 'actions', header: 'Əməliyyatlar', render: (item) => (
-            <>
-                <button className="btn btn-warning btn-sm mr-2" onClick={() => handleShowModal(item)}><i className="fas fa-edit"></i></button>
-                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(item.id)}><i className="fas fa-trash"></i></button>
-            </>
-        )}
+        { Header: 'ID', accessor: 'id' },
+        { Header: 'Ad', accessor: 'name' },
+        { Header: 'Başlama Tarixi', accessor: 'startDate', Cell: ({ value }) => new Date(value).toLocaleString() },
+        { Header: 'Bitmə Tarixi', accessor: 'endDate', Cell: ({ value }) => new Date(value).toLocaleString() },
+        {
+            Header: 'Əməliyyatlar',
+            accessor: 'actions',
+            Cell: ({ row }) => (
+                <>
+                    <Button variant="primary" size="sm" onClick={() => handleEdit(row.original)} className="mr-2">Redaktə</Button>
+                    <Button variant="danger" size="sm" onClick={() => handleDelete(row.original.id)}>Sil</Button>
+                </>
+            ),
+        },
     ];
 
     return (
         <div>
-            <h1 className="h3 mb-4 text-gray-800">Kampaniyaların İdarə Olunması</h1>
-            <SearchableDataTable data={campaigns} columns={columns} loading={loading} title="Kampaniya Siyahısı" onAddClick={() => handleShowModal()} />
+            <h1 className="h3 mb-2 text-gray-800">Kampaniyaların İdarə Olunması</h1>
+            <p className="mb-4">Yeni kampaniyalar yaradın, mövcud olanları redaktə edin və ya silin.</p>
+            <Button variant="success" onClick={handleCreate} className="mb-3">
+                <i className="fas fa-plus mr-2"></i>Yeni Kampaniya Yarat
+            </Button>
+            {error && <Alert variant="danger">{error}</Alert>}
+            <SearchableDataTable
+                columns={columns}
+                data={campaigns}
+                loading={loading}
+                onSearch={setSearchTerm}
+                pagination={pagination}
+                onPageChange={(page) => setPagination(p => ({ ...p, currentPage: page }))}
+            />
 
-            <div className={`modal fade ${showModal ? 'show d-block' : ''}`} tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-                <div className="modal-dialog modal-lg">
-                    <div className="modal-content">
-                        <div className="modal-header">
-                            <h5 className="modal-title">{isEditing ? 'Kampaniyanı Redaktə Et' : 'Yeni Kampaniya Yarat'}</h5>
-                            <button type="button" className="close" onClick={handleCloseModal}><span>&times;</span></button>
-                        </div>
-                        <form onSubmit={handleSubmit(onSubmit)}>
-                            <div className="modal-body">
-                                <div className="form-group">
-                                    <label>Ad</label>
-                                    <input type="text" className={`form-control ${errors.name ? 'is-invalid' : ''}`} {...register('name', { required: 'Ad məcburidir' })} />
-                                </div>
-                                <div className="form-group">
-                                    <label>Təsvir</label>
-                                    <textarea className="form-control" {...register('description')}></textarea>
-                                </div>
-                                <div className="form-row">
-                                    <div className="form-group col-md-4">
-                                        <label>Endirim (%)</label>
-                                        <input type="number" step="0.01" className={`form-control ${errors.discount ? 'is-invalid' : ''}`} {...register('discount', { required: 'Endirim məcburidir', valueAsNumber: true, min: 0, max: 100 })} />
-                                    </div>
-                                    <div className="form-group col-md-4">
-                                        <label>Başlanğıc Tarixi</label>
-                                        <input type="datetime-local" className={`form-control ${errors.startDate ? 'is-invalid' : ''}`} {...register('startDate', { required: 'Başlanğıc tarixi məcburidir' })} />
-                                    </div>
-                                    <div className="form-group col-md-4">
-                                        <label>Bitiş Tarixi</label>
-                                        <input type="datetime-local" className={`form-control ${errors.endDate ? 'is-invalid' : ''}`} {...register('endDate', { required: 'Bitiş tarixi məcburidir' })} />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="modal-footer">
-                                <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>Bağla</button>
-                                <button type="submit" className="btn btn-primary">Yadda Saxla</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
+            <Modal show={isModalOpen} onHide={handleCloseModal}>
+                <Modal.Header closeButton>
+                    <Modal.Title>{editingCampaign?.id ? 'Kampaniyanı Redaktə Et' : 'Yeni Kampaniya Yarat'}</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form>
+                        <Form.Group>
+                            <Form.Label>Kampaniya Adı</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={editingCampaign?.name || ''}
+                                onChange={(e) => setEditingCampaign({ ...editingCampaign, name: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group className="mt-3">
+                            <Form.Label>Açıqlama</Form.Label>
+                            <Form.Control
+                                as="textarea"
+                                rows={3}
+                                value={editingCampaign?.description || ''}
+                                onChange={(e) => setEditingCampaign({ ...editingCampaign, description: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group className="mt-3">
+                            <Form.Label>Başlama Tarixi</Form.Label>
+                            <Form.Control
+                                type="datetime-local"
+                                value={editingCampaign?.startDate || ''}
+                                onChange={(e) => setEditingCampaign({ ...editingCampaign, startDate: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group className="mt-3">
+                            <Form.Label>Bitmə Tarixi</Form.Label>
+                            <Form.Control
+                                type="datetime-local"
+                                value={editingCampaign?.endDate || ''}
+                                onChange={(e) => setEditingCampaign({ ...editingCampaign, endDate: e.target.value })}
+                            />
+                        </Form.Group>
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={handleCloseModal}>Bağla</Button>
+                    <Button variant="primary" onClick={handleSave}>Yadda Saxla</Button>
+                </Modal.Footer>
+            </Modal>
         </div>
     );
 };

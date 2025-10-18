@@ -1,88 +1,294 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Typography,
+  CircularProgress,
+  Alert,
+  ToggleButton,
+  ToggleButtonGroup,
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  DialogContentText,
+} from '@mui/material';
+import {
+  DataGrid,
+  GridToolbar,
+  GridActionsCellItem,
+} from '@mui/x-data-grid';
+import { Check as CheckIcon, Close as CloseIcon } from '@mui/icons-material';
 import axiosInstance from '../api/axiosInstance';
-import { toast } from 'react-toastify';
-import SearchableDataTable from '../components/SearchableDataTable';
 
 const ReviewManagement = () => {
-    const [reviews, setReviews] = useState([]);
-    const [loading, setLoading] = useState(true);
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filter, setFilter] = useState('pending');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [reviewToDelete, setReviewToDelete] = useState(null);
+  const [processing, setProcessing] = useState(false);
 
-    const fetchReviews = async () => {
-        try {
-            setLoading(true);
-            const response = await axiosInstance.get('/review/paged', { params: { PageSize: 1000 } });
-            setReviews(response.data.data || []);
-        } catch (err) {
-            toast.error('Rəyləri yükləmək mümkün olmadı.');
-        } finally {
-            setLoading(false);
-        }
-    };
+  useEffect(() => {
+    fetchReviews();
+  }, [filter]);
 
-    useEffect(() => {
+  const fetchReviews = async () => {
+    try {
+      setLoading(true);
+      let url = '/api/reviews/paged';
+      
+      if (filter === 'pending') {
+        url += '?isApproved=false';
+      } else if (filter === 'approved') {
+        url += '?isApproved=true';
+      }
+      
+      const response = await axiosInstance.get(url);
+      setReviews(response.data);
+    } catch (err) {
+      console.error('Error fetching reviews:', err);
+      setError('Failed to load reviews');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApprove = async (reviewId) => {
+    try {
+      setProcessing(true);
+      await axiosInstance.put(`/api/reviews/${reviewId}`, {
+        isApproved: true
+      });
+      
+      // Remove the review from the list if filtering by pending
+      if (filter === 'pending') {
+        setReviews(prev => prev.filter(review => review.id !== reviewId));
+      } else {
         fetchReviews();
-    }, []);
+      }
+    } catch (err) {
+      console.error('Error approving review:', err);
+      setError('Failed to approve review');
+    } finally {
+      setProcessing(false);
+    }
+  };
 
-    const handleApproveToggle = async (review) => {
-        try {
-            const payload = { 
-                id: review.id,
-                content: review.content,
-                rating: review.rating,
-                isApproved: !review.isApproved 
-            };
-            await axiosInstance.put(`/review`, payload);
-            toast.success(`Rəyin statusu dəyişdirildi.`);
-            fetchReviews();
-        } catch (err) {
-            toast.error('Rəy statusunu yeniləmək mümkün olmadı.');
-        }
-    };
+  const handleReject = (review) => {
+    setReviewToDelete(review);
+    setDeleteDialogOpen(true);
+  };
 
-    const handleDelete = async (id) => {
-        if (window.confirm('Bu rəyi silmək istədiyinizə əminsiniz?')) {
-            try {
-                await axiosInstance.delete(`/review/${id}`);
-                toast.success('Rəy uğurla silindi.');
-                fetchReviews();
-            } catch (err) {
-                toast.error('Rəyi silmək mümkün olmadı.');
-            }
-        }
-    };
+  const handleConfirmReject = async () => {
+    try {
+      setProcessing(true);
+      await axiosInstance.delete(`/api/reviews/${reviewToDelete.id}`);
+      
+      // Remove the review from the list
+      setReviews(prev => prev.filter(review => review.id !== reviewToDelete.id));
+      setDeleteDialogOpen(false);
+      setReviewToDelete(null);
+    } catch (err) {
+      console.error('Error rejecting review:', err);
+      setError('Failed to reject review');
+    } finally {
+      setProcessing(false);
+    }
+  };
 
-    const columns = [
-        { key: 'applicationName', header: 'Oyun', sortable: true },
-        { key: 'userName', header: 'İstifadəçi', sortable: true },
-        { key: 'content', header: 'Rəy', sortable: false, render: (item) => <small>{item.content}</small> },
-        { key: 'rating', header: 'Reytinq', sortable: true, render: (item) => `${item.rating}/5` },
-        { key: 'isApproved', header: 'Status', sortable: true, render: (item) => (
-            item.isApproved
-                ? <span className="badge badge-success">Təsdiqlənib</span>
-                : <span className="badge badge-warning">Gözləmədə</span>
-        )},
-        { key: 'actions', header: 'Əməliyyatlar', render: (item) => (
-            <>
-                <button 
-                    className={`btn btn-sm mr-2 ${item.isApproved ? 'btn-outline-secondary' : 'btn-success'}`}
-                    onClick={() => handleApproveToggle(item)}
-                    title={item.isApproved ? 'Ləğv et' : 'Təsdiqlə'}
-                >
-                    <i className={`fas ${item.isApproved ? 'fa-times-circle' : 'fa-check-circle'}`}></i>
-                </button>
-                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(item.id)} title="Sil">
-                    <i className="fas fa-trash"></i>
-                </button>
-            </>
-        )}
-    ];
+  const handleFilterChange = (event, newFilter) => {
+    if (newFilter !== null) {
+      setFilter(newFilter);
+    }
+  };
 
+  const getStatusChip = (isApproved) => {
     return (
-        <div>
-            <h1 className="h3 mb-4 text-gray-800">Rəylərin İdarə Olunması</h1>
-            <SearchableDataTable data={reviews} columns={columns} loading={loading} title="Rəylərin Siyahısı" />
-        </div>
+      <Chip
+        label={isApproved ? 'Approved' : 'Pending'}
+        color={isApproved ? 'success' : 'warning'}
+        size="small"
+      />
     );
+  };
+
+  const getRecommendationChip = (isRecommended) => {
+    return (
+      <Chip
+        label={isRecommended ? 'Recommended' : 'Not Recommended'}
+        color={isRecommended ? 'success' : 'error'}
+        size="small"
+      />
+    );
+  };
+
+  const columns = [
+    { field: 'id', headerName: 'ID', width: 90 },
+    { 
+      field: 'gameTitle', 
+      headerName: 'Game', 
+      width: 200,
+      valueGetter: (params) => params.row.game?.title || 'N/A'
+    },
+    { 
+      field: 'username', 
+      headerName: 'User', 
+      width: 150,
+      valueGetter: (params) => params.row.user?.username || 'N/A'
+    },
+    {
+      field: 'content',
+      headerName: 'Review Content',
+      width: 300,
+      renderCell: (params) => (
+        <Typography
+          variant="body2"
+          sx={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+          }}
+        >
+          {params.value}
+        </Typography>
+      ),
+    },
+    {
+      field: 'isRecommended',
+      headerName: 'Recommendation',
+      width: 150,
+      renderCell: (params) => getRecommendationChip(params.value),
+    },
+    {
+      field: 'isApproved',
+      headerName: 'Status',
+      width: 120,
+      renderCell: (params) => getStatusChip(params.value),
+    },
+    {
+      field: 'actions',
+      type: 'actions',
+      headerName: 'Actions',
+      width: 120,
+      getActions: (params) => {
+        const actions = [];
+        
+        if (!params.row.isApproved) {
+          actions.push(
+            <GridActionsCellItem
+              icon={<CheckIcon />}
+              label="Approve"
+              onClick={() => handleApprove(params.row.id)}
+              disabled={processing}
+            />
+          );
+        }
+        
+        actions.push(
+          <GridActionsCellItem
+            icon={<CloseIcon />}
+            label="Reject"
+            onClick={() => handleReject(params.row)}
+            disabled={processing}
+          />
+        );
+        
+        return actions;
+      },
+    },
+  ];
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress size={60} />
+      </Box>
+    );
+  }
+
+  return (
+    <Box>
+      <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+        <Typography variant="h4">
+          Review Management
+        </Typography>
+        <ToggleButtonGroup
+          value={filter}
+          exclusive
+          onChange={handleFilterChange}
+          aria-label="review filter"
+        >
+          <ToggleButton value="pending" aria-label="pending">
+            Pending
+          </ToggleButton>
+          <ToggleButton value="approved" aria-label="approved">
+            Approved
+          </ToggleButton>
+          <ToggleButton value="all" aria-label="all">
+            All
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+      
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
+
+      <Card>
+        <CardContent>
+          <DataGrid
+            rows={reviews}
+            columns={columns}
+            slots={{ toolbar: GridToolbar }}
+            initialState={{
+              pagination: {
+                paginationModel: { page: 0, pageSize: 10 },
+              },
+            }}
+            pageSizeOptions={[5, 10, 25]}
+            disableRowSelectionOnClick
+            autoHeight
+          />
+        </CardContent>
+      </Card>
+
+      {/* Delete/Reject Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+      >
+        <DialogTitle>Reject Review</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to reject this review? This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleConfirmReject} 
+            color="error" 
+            variant="contained"
+            disabled={processing}
+            startIcon={processing ? <CircularProgress size={20} /> : null}
+          >
+            {processing ? 'Rejecting...' : 'Reject'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
 };
 
 export default ReviewManagement;

@@ -1,94 +1,202 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  CircularProgress,
+  Alert,
+  Paper,
+} from '@mui/material';
+import {
+  MonetizationOn,
+  PersonAdd,
+  ShoppingCart,
+  RateReview,
+} from '@mui/icons-material';
+import { Bar, Doughnut } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+} from 'chart.js';
 import axiosInstance from '../api/axiosInstance';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
-import { Bar } from 'react-chartjs-2';
-import { toast } from 'react-toastify';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement
+);
 
 const Dashboard = () => {
-    const [stats, setStats] = useState({
-        totalRevenue: 0,
-        newUsersLast30Days: 0,
-        totalOrders: 0,
-        pendingReviews: 0
-    });
-    const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalRevenue: 0,
+    newUsersLast30Days: 0,
+    totalOrders: 0,
+    pendingReviews: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-    useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                // DÜZƏLİŞ: Vahid statistika endpoint-inə sorğu göndərilir
-                const response = await axiosInstance.get('/admin/statistics');
-                setStats(response.data);
-            } catch (error) {
-                toast.error("Dashboard statistikası yüklənərkən xəta baş verdi.");
-                console.error("Failed to fetch dashboard stats", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchStats();
-    }, []);
+  useEffect(() => {
+    fetchStats();
+  }, []);
 
-    const salesChartData = {
-        labels: ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'İyun'],
-        datasets: [{
-            label: 'Gəlir',
-            data: [1200, 1900, 3000, 5000, 2300, 3200], // Gələcəkdə bu məlumatlar backend-dən gəlməlidir
-            backgroundColor: 'rgba(78, 115, 223, 1)',
-        }]
-    };
+  const fetchStats = async () => {
+    try {
+      setLoading(true);
+      const response = await axiosInstance.get('/api/admin/statistics');
+      setStats(response.data);
+    } catch (err) {
+      console.error('Error fetching stats:', err);
+      setError('Failed to load statistics');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  const revenueData = {
+    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+    datasets: [
+      {
+        label: 'Revenue',
+        data: [12000, 19000, 3000, 5000, 2000, 3000],
+        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+        borderColor: 'rgba(54, 162, 235, 1)',
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  const genreData = {
+    labels: ['Action', 'Adventure', 'RPG', 'Strategy', 'Sports'],
+    datasets: [
+      {
+        data: [30, 25, 20, 15, 10],
+        backgroundColor: [
+          '#FF6384',
+          '#36A2EB',
+          '#FFCE56',
+          '#4BC0C0',
+          '#9966FF',
+        ],
+      },
+    ],
+  };
+
+  if (loading) {
     return (
-        <>
-            <div className="d-sm-flex align-items-center justify-content-between mb-4">
-                <h1 className="h3 mb-0 text-gray-800">İdarəetmə Paneli</h1>
-            </div>
-
-            <div className="row">
-                <StatCard title="Cəmi Gəlir" value={`$${stats.totalRevenue.toFixed(2)}`} icon="dollar-sign" color="primary" loading={loading} />
-                <StatCard title="Cəmi Sifarişlər" value={stats.totalOrders} icon="shopping-cart" color="success" loading={loading} />
-                <StatCard title="Yeni İstifadəçilər (30 gün)" value={stats.newUsersLast30Days} icon="users" color="info" loading={loading} />
-                <StatCard title="Gözləyən Rəylər" value={stats.pendingReviews} icon="comments" color="warning" loading={loading} />
-            </div>
-            
-            <div className="row">
-                <div className="col-lg-12">
-                    <div className="card shadow mb-4">
-                        <div className="card-header py-3">
-                            <h6 className="m-0 font-weight-bold text-primary">Gəlir Qrafiki</h6>
-                        </div>
-                        <div className="card-body">
-                            <div style={{ height: '320px' }}>
-                                <Bar options={{ responsive: true, maintainAspectRatio: false }} data={salesChartData} />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </>
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress size={60} />
+      </Box>
     );
-};
+  }
 
-const StatCard = ({ title, value, icon, color, loading }) => (
-    <div className="col-xl-3 col-md-6 mb-4">
-        <div className={`card border-left-${color} shadow h-100 py-2`}>
-            <div className="card-body">
-                <div className="row no-gutters align-items-center">
-                    <div className="col mr-2">
-                        <div className={`text-xs font-weight-bold text-${color} text-uppercase mb-1`}>{title}</div>
-                        <div className="h5 mb-0 font-weight-bold text-gray-800">
-                            {loading ? 'Yüklənir...' : value}
-                        </div>
-                    </div>
-                    <div className="col-auto">
-                        <i className={`fas fa-${icon} fa-2x text-gray-300`}></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-);
+  if (error) {
+    return (
+      <Alert severity="error" sx={{ mb: 2 }}>
+        {error}
+      </Alert>
+    );
+  }
+
+  const StatCard = ({ title, value, icon, color }) => (
+    <Card sx={{ height: '100%' }}>
+      <CardContent>
+        <Box display="flex" alignItems="center" justifyContent="space-between">
+          <Box>
+            <Typography color="textSecondary" gutterBottom variant="h6">
+              {title}
+            </Typography>
+            <Typography variant="h4" component="div" color={color}>
+              {value}
+            </Typography>
+          </Box>
+          <Box color={color}>
+            {icon}
+          </Box>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <Box>
+      <Typography variant="h4" gutterBottom sx={{ mb: 3 }}>
+        Dashboard
+      </Typography>
+      
+      <Grid container spacing={3}>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Total Revenue"
+            value={`$${stats.totalRevenue.toLocaleString()}`}
+            icon={<MonetizationOn sx={{ fontSize: 40 }} />}
+            color="primary.main"
+          />
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="New Users (30 days)"
+            value={stats.newUsersLast30Days}
+            icon={<PersonAdd sx={{ fontSize: 40 }} />}
+            color="success.main"
+          />
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Total Orders"
+            value={stats.totalOrders}
+            icon={<ShoppingCart sx={{ fontSize: 40 }} />}
+            color="info.main"
+          />
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Pending Reviews"
+            value={stats.pendingReviews}
+            icon={<RateReview sx={{ fontSize: 40 }} />}
+            color="warning.main"
+          />
+        </Grid>
+
+        <Grid item xs={12} md={8}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Revenue Overview
+            </Typography>
+            <Box sx={{ height: 300 }}>
+              <Bar data={revenueData} options={{ responsive: true, maintainAspectRatio: false }} />
+            </Box>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={4}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Game Genres
+            </Typography>
+            <Box sx={{ height: 300 }}>
+              <Doughnut data={genreData} options={{ responsive: true, maintainAspectRatio: false }} />
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+};
 
 export default Dashboard;

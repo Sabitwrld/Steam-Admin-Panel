@@ -1,46 +1,46 @@
+// src/api/axiosInstance.js
+
 import axios from 'axios';
 
-// Create axios instance with base configuration
 const axiosInstance = axios.create({
-  baseURL: 'http://localhost:5280/api',
-  timeout: 10000,
+  baseURL: 'http://localhost:5280',
+  timeout: 10000, // 10 second timeout
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor to add JWT token to every request
+// Request interceptor to add auth token
 axiosInstance.interceptors.request.use(
   (config) => {
-    // Get the JWT token from localStorage
-    const authToken = localStorage.getItem('authToken');
-    
-    // If token exists, add it to the Authorization header
-    if (authToken) {
-      config.headers.Authorization = `Bearer ${authToken}`;
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
     }
-    
     return config;
   },
   (error) => {
-    // Handle request error
     return Promise.reject(error);
   }
 );
 
-// Response interceptor to handle common errors
+// Response interceptor for error handling
 axiosInstance.interceptors.response.use(
   (response) => {
-    // Return successful response
     return response;
   },
   (error) => {
-    // Handle common error cases
+    // Handle 401 Unauthorized errors
     if (error.response?.status === 401) {
-      // Unauthorized - token might be expired or invalid
+      // Clear auth data and redirect to login
       localStorage.removeItem('authToken');
-      // You might want to redirect to login page here
-      console.warn('Authentication token expired or invalid');
+      localStorage.removeItem('userData');
+      window.location.href = '/login';
+    }
+    
+    // Handle network errors
+    if (!error.response) {
+      console.error('Network error:', error.message);
     }
     
     return Promise.reject(error);
