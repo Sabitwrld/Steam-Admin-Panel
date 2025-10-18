@@ -10,10 +10,10 @@ const ReviewManagement = () => {
     const fetchReviews = async () => {
         try {
             setLoading(true);
-            const response = await axiosInstance.get('/review');
+            const response = await axiosInstance.get('/review/paged', { params: { PageSize: 1000 } });
             setReviews(response.data.data || []);
         } catch (err) {
-            toast.error('Failed to fetch reviews.');
+            toast.error('Rəyləri yükləmək mümkün olmadı.');
         } finally {
             setLoading(false);
         }
@@ -23,43 +23,54 @@ const ReviewManagement = () => {
         fetchReviews();
     }, []);
 
-    const handleApprove = async (review) => {
+    const handleApproveToggle = async (review) => {
         try {
-            const payload = { ...review, isApproved: !review.isApproved };
-            await axiosInstance.put(`/review/${review.id}`, payload);
-            toast.success(`Review status changed!`);
+            const payload = { 
+                id: review.id,
+                content: review.content,
+                rating: review.rating,
+                isApproved: !review.isApproved 
+            };
+            await axiosInstance.put(`/review`, payload);
+            toast.success(`Rəyin statusu dəyişdirildi.`);
             fetchReviews();
         } catch (err) {
-            toast.error('Failed to update review status.');
+            toast.error('Rəy statusunu yeniləmək mümkün olmadı.');
         }
     };
 
     const handleDelete = async (id) => {
-        if (window.confirm('Are you sure you want to permanently delete this review?')) {
+        if (window.confirm('Bu rəyi silmək istədiyinizə əminsiniz?')) {
             try {
                 await axiosInstance.delete(`/review/${id}`);
-                toast.success('Review deleted successfully.');
+                toast.success('Rəy uğurla silindi.');
                 fetchReviews();
             } catch (err) {
-                toast.error('Failed to delete review.');
+                toast.error('Rəyi silmək mümkün olmadı.');
             }
         }
     };
 
     const columns = [
-        { key: 'applicationName', header: 'Game', sortable: true },
-        { key: 'userName', header: 'User', sortable: true },
-        { key: 'content', header: 'Content', sortable: false },
-        { key: 'rating', header: 'Rating', sortable: true, render: (item) => `${item.rating}/10` },
-        { key: 'actions', header: 'Actions', sortable: false, render: (item) => (
+        { key: 'applicationName', header: 'Oyun', sortable: true },
+        { key: 'userName', header: 'İstifadəçi', sortable: true },
+        { key: 'content', header: 'Rəy', sortable: false, render: (item) => <small>{item.content}</small> },
+        { key: 'rating', header: 'Reytinq', sortable: true, render: (item) => `${item.rating}/5` },
+        { key: 'isApproved', header: 'Status', sortable: true, render: (item) => (
+            item.isApproved
+                ? <span className="badge badge-success">Təsdiqlənib</span>
+                : <span className="badge badge-warning">Gözləmədə</span>
+        )},
+        { key: 'actions', header: 'Əməliyyatlar', render: (item) => (
             <>
                 <button 
                     className={`btn btn-sm mr-2 ${item.isApproved ? 'btn-outline-secondary' : 'btn-success'}`}
-                    onClick={() => handleApprove(item)}
+                    onClick={() => handleApproveToggle(item)}
+                    title={item.isApproved ? 'Ləğv et' : 'Təsdiqlə'}
                 >
-                    <i className={`fas ${item.isApproved ? 'fa-times-circle' : 'fa-check-circle'}`}></i> {item.isApproved ? 'Unapprove' : 'Approve'}
+                    <i className={`fas ${item.isApproved ? 'fa-times-circle' : 'fa-check-circle'}`}></i>
                 </button>
-                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(item.id)}>
+                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(item.id)} title="Sil">
                     <i className="fas fa-trash"></i>
                 </button>
             </>
@@ -68,10 +79,8 @@ const ReviewManagement = () => {
 
     return (
         <div>
-            <h1 className="h3 mb-2 text-gray-800">Review Management</h1>
-            <p className="mb-4">Approve or delete user-submitted reviews.</p>
-            
-            {loading ? <p>Loading reviews...</p> : <SearchableDataTable data={reviews} columns={columns} />}
+            <h1 className="h3 mb-4 text-gray-800">Rəylərin İdarə Olunması</h1>
+            <SearchableDataTable data={reviews} columns={columns} loading={loading} title="Rəylərin Siyahısı" />
         </div>
     );
 };

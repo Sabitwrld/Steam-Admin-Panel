@@ -1,41 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../api/axiosInstance';
+import { toast } from 'react-toastify';
+import SearchableDataTable from '../components/SearchableDataTable';
 
 const UserManagement = () => {
     const [users, setUsers] = useState([]);
     const [roles, setRoles] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    
+    // Modal vəziyyəti
     const [selectedUser, setSelectedUser] = useState(null);
     const [showModal, setShowModal] = useState(false);
     const [userRoles, setUserRoles] = useState([]);
 
-    const fetchUsers = async () => {
+    const fetchAllData = async () => {
         try {
             setLoading(true);
-            const response = await axiosInstance.get('/admin/users');
-            setUsers(response.data || []);
-            setError('');
+            const [usersRes, rolesRes] = await Promise.all([
+                axiosInstance.get('/admin/users'),
+                axiosInstance.get('/admin/roles')
+            ]);
+            setUsers(usersRes.data || []);
+            setRoles(rolesRes.data || []);
         } catch (err) {
-            setError('Failed to fetch users.');
-            console.error(err);
+            toast.error("İstifadəçi və rol məlumatları yüklənərkən xəta baş verdi.");
         } finally {
             setLoading(false);
         }
     };
 
-    const fetchRoles = async () => {
-        try {
-            const response = await axiosInstance.get('/admin/roles');
-            setRoles(response.data || []);
-        } catch (err) {
-            console.error('Failed to fetch roles:', err);
-        }
-    };
-
     useEffect(() => {
-        fetchUsers();
-        fetchRoles();
+        fetchAllData();
     }, []);
 
     const handleOpenRoleModal = (user) => {
@@ -62,72 +57,50 @@ const UserManagement = () => {
         if (!selectedUser) return;
         try {
             await axiosInstance.post(`/admin/assign-role/${selectedUser.id}`, { roles: userRoles });
-            fetchUsers(); // Refresh user list to show updated roles
+            toast.success(`${selectedUser.userName} üçün rollar yeniləndi.`);
+            fetchAllData(); // Siyahını yenilə
             handleCloseModal();
         } catch (err) {
-            console.error('Failed to update roles:', err);
-            setError('Failed to update roles.');
+            toast.error("Rollar yenilənərkən xəta baş verdi.");
         }
     };
 
+    const columns = [
+        { key: 'userName', header: 'İstifadəçi Adı', sortable: true },
+        { key: 'email', header: 'Email', sortable: true },
+        { key: 'roles', header: 'Rollar', sortable: false, render: (item) => item.roles.join(', ') },
+        { key: 'actions', header: 'Əməliyyatlar', render: (item) => (
+            <button 
+                className="btn btn-info btn-sm"
+                onClick={() => handleOpenRoleModal(item)}
+            >
+                <i className="fas fa-user-shield fa-sm"></i> Rolları İdarə Et
+            </button>
+        )}
+    ];
+
     return (
         <div>
-            <h1 className="h3 mb-2 text-gray-800">User Management</h1>
-            <p className="mb-4">Manage user roles and permissions.</p>
+            <h1 className="h3 mb-4 text-gray-800">İstifadəçilərin İdarə Olunması</h1>
             
-            {error && <div className="alert alert-danger">{error}</div>}
+            <SearchableDataTable
+                data={users}
+                columns={columns}
+                loading={loading}
+                title="İstifadəçi Siyahısı"
+                keyField="id"
+            />
 
-            <div className="card shadow mb-4">
-                <div className="card-header py-3">
-                    <h6 className="m-0 font-weight-bold text-primary">Users and Roles</h6>
-                </div>
-                <div className="card-body">
-                    <div className="table-responsive">
-                        {loading ? <p>Loading...</p> : (
-                            <table className="table table-bordered" width="100%" cellSpacing="0">
-                                <thead>
-                                    <tr>
-                                        <th>User ID</th>
-                                        <th>Username</th>
-                                        <th>Email</th>
-                                        <th>Roles</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {users.map(user => (
-                                        <tr key={user.id}>
-                                            <td>{user.id}</td>
-                                            <td>{user.userName}</td>
-                                            <td>{user.email}</td>
-                                            <td>{user.roles.join(', ')}</td>
-                                            <td>
-                                                <button 
-                                                    className="btn btn-info btn-sm"
-                                                    onClick={() => handleOpenRoleModal(user)}
-                                                >
-                                                    <i className="fas fa-user-shield fa-sm"></i> Manage Roles
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Role Management Modal */}
+            {/* Rol İdarəetmə Modal Pəncərəsi */}
             <div className={`modal fade ${showModal ? 'show d-block' : ''}`} tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
                 <div className="modal-dialog">
                     <div className="modal-content">
                         <div className="modal-header">
-                            <h5 className="modal-title">Manage Roles for {selectedUser?.userName}</h5>
+                            <h5 className="modal-title">{selectedUser?.userName} üçün Rollar</h5>
                             <button type="button" className="close" onClick={handleCloseModal}><span>&times;</span></button>
                         </div>
                         <div className="modal-body">
-                            <p>Select the roles for this user:</p>
+                            <p>Bu istifadəçi üçün rolları seçin:</p>
                             {roles.map(role => (
                                 <div className="form-check" key={role.id}>
                                     <input
@@ -145,8 +118,8 @@ const UserManagement = () => {
                             ))}
                         </div>
                         <div className="modal-footer">
-                            <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>Cancel</button>
-                            <button type="button" className="btn btn-primary" onClick={handleSaveRoles}>Save Changes</button>
+                            <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>Ləğv Et</button>
+                            <button type="button" className="btn btn-primary" onClick={handleSaveRoles}>Yadda Saxla</button>
                         </div>
                     </div>
                 </div>

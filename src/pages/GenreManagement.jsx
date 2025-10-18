@@ -1,28 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../api/axiosInstance';
 import { useForm } from 'react-hook-form';
+import { toast } from 'react-toastify';
+import SearchableDataTable from '../components/SearchableDataTable';
 
 const GenreManagement = () => {
     const [genres, setGenres] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    
-    // Modal state
     const [showModal, setShowModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [currentGenre, setCurrentGenre] = useState(null);
-
     const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
-    
+
     const fetchGenres = async () => {
         try {
             setLoading(true);
-            const response = await axiosInstance.get('/genres');
+            const response = await axiosInstance.get('/genre/paged', { params: { PageSize: 1000 } });
             setGenres(response.data.data || []);
-            setError('');
         } catch (err) {
-            setError('Failed to fetch genres.');
-            console.error(err);
+            toast.error('Janrları yükləmək mümkün olmadı.');
         } finally {
             setLoading(false);
         }
@@ -45,117 +41,73 @@ const GenreManagement = () => {
         setShowModal(true);
     };
 
-    const handleCloseModal = () => {
-        setShowModal(false);
-    };
+    const handleCloseModal = () => setShowModal(false);
 
     const onSubmit = async (data) => {
         try {
             if (isEditing) {
-                await axiosInstance.put(`/genres/${currentGenre.id}`, { id: currentGenre.id, ...data });
+                await axiosInstance.put(`/genre`, { id: currentGenre.id, ...data });
+                toast.success("Janr uğurla yeniləndi!");
             } else {
-                await axiosInstance.post('/genres', data);
+                await axiosInstance.post('/genre', data);
+                toast.success("Yeni janr uğurla yaradıldı!");
             }
             fetchGenres();
             handleCloseModal();
         } catch (err) {
-            console.error('Failed to save genre:', err);
-            setError(`Failed to ${isEditing ? 'update' : 'add'} genre.`);
+            toast.error("Əməliyyat zamanı xəta baş verdi.");
         }
     };
     
     const handleDelete = async (id) => {
-        if (window.confirm('Are you sure you want to delete this genre?')) {
+        if (window.confirm('Bu janrı silməyə əminsiniz?')) {
             try {
-                await axiosInstance.delete(`/genres/${id}`);
+                await axiosInstance.delete(`/genre/${id}`);
+                toast.success('Janr uğurla silindi.');
                 fetchGenres();
             } catch (err) {
-                console.error('Failed to delete genre:', err);
-                setError('Failed to delete genre.');
+                toast.error('Janrı silmək mümkün olmadı.');
             }
         }
     };
 
+    const columns = [
+        { key: 'name', header: 'Ad', sortable: true },
+        { key: 'actions', header: 'Əməliyyatlar', render: (item) => (
+            <>
+                <button className="btn btn-warning btn-sm mr-2" onClick={() => handleShowModal(item)}><i className="fas fa-edit"></i></button>
+                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(item.id)}><i className="fas fa-trash"></i></button>
+            </>
+        )}
+    ];
+
     return (
         <div>
-            <div className="d-sm-flex align-items-center justify-content-between mb-4">
-                <h1 className="h3 mb-0 text-gray-800">Genre Management</h1>
-                <button className="btn btn-primary btn-sm" onClick={() => handleShowModal()}>
-                    <i className="fas fa-plus fa-sm text-white-50"></i> Add New Genre
-                </button>
-            </div>
+            <h1 className="h3 mb-4 text-gray-800">Janrların İdarə Olunması</h1>
+            <SearchableDataTable data={genres} columns={columns} loading={loading} title="Janr Siyahısı" onAddClick={() => handleShowModal()} />
 
-            {error && <div className="alert alert-danger">{error}</div>}
-
-            <div className="card shadow mb-4">
-                <div className="card-header py-3">
-                    <h6 className="m-0 font-weight-bold text-primary">Genres List</h6>
-                </div>
-                <div className="card-body">
-                    <div className="table-responsive">
-                        {loading ? <p>Loading...</p> : (
-                            <table className="table table-bordered" id="dataTable" width="100%" cellSpacing="0">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Name</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {genres.map(genre => (
-                                        <tr key={genre.id}>
-                                            <td>{genre.id}</td>
-                                            <td>{genre.name}</td>
-                                            <td>
-                                                <button className="btn btn-warning btn-sm mr-2" onClick={() => handleShowModal(genre)}>
-                                                    <i className="fas fa-edit"></i>
-                                                </button>
-                                                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(genre.id)}>
-                                                    <i className="fas fa-trash"></i>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Bootstrap Modal */}
             <div className={`modal fade ${showModal ? 'show d-block' : ''}`} tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
                 <div className="modal-dialog">
                     <div className="modal-content">
                         <div className="modal-header">
-                            <h5 className="modal-title">{isEditing ? 'Edit Genre' : 'Add Genre'}</h5>
-                            <button type="button" className="close" onClick={handleCloseModal}>
-                                <span>&times;</span>
-                            </button>
+                            <h5 className="modal-title">{isEditing ? 'Janrı Redaktə Et' : 'Yeni Janr Yarat'}</h5>
+                            <button type="button" className="close" onClick={handleCloseModal}><span>&times;</span></button>
                         </div>
                         <form onSubmit={handleSubmit(onSubmit)}>
                             <div className="modal-body">
                                 <div className="form-group">
-                                    <label htmlFor="name">Genre Name</label>
-                                    <input
-                                        type="text"
-                                        className={`form-control ${errors.name ? 'is-invalid' : ''}`}
-                                        id="name"
-                                        {...register('name', { required: 'Genre name is required' })}
-                                    />
-                                    {errors.name && <div className="invalid-feedback">{errors.name.message}</div>}
+                                    <label>Janr Adı</label>
+                                    <input type="text" className={`form-control ${errors.name ? 'is-invalid' : ''}`} {...register('name', { required: 'Ad məcburidir' })} />
                                 </div>
                             </div>
                             <div className="modal-footer">
-                                <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>Close</button>
-                                <button type="submit" className="btn btn-primary">Save changes</button>
+                                <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>Bağla</button>
+                                <button type="submit" className="btn btn-primary">Yadda Saxla</button>
                             </div>
                         </form>
                     </div>
                 </div>
             </div>
-
         </div>
     );
 };

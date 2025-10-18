@@ -12,11 +12,10 @@ const OrderManagement = () => {
     const fetchOrders = async () => {
         try {
             setLoading(true);
-            const response = await axiosInstance.get('/orders');
+            const response = await axiosInstance.get('/orders/paged', { params: { PageSize: 1000 } }); 
             setOrders(response.data.data || []);
         } catch (err) {
-            toast.error('Failed to fetch orders.');
-            console.error(err);
+            toast.error('Sifarişləri yükləmək mümkün olmadı.');
         } finally {
             setLoading(false);
         }
@@ -32,75 +31,69 @@ const OrderManagement = () => {
     };
     
     const handleStatusChange = async (orderId, newStatus) => {
-        if (!window.confirm(`Are you sure you want to change the status to "${newStatus}"?`)) return;
+        if (!window.confirm(`Statusu "${newStatus}" olaraq dəyişməyə əminsiniz?`)) return;
 
         try {
             const orderToUpdate = orders.find(o => o.id === orderId);
-            const payload = { id: orderToUpdate.id, userId: orderToUpdate.userId, status: newStatus };
+            const payload = {
+                id: orderToUpdate.id,
+                userId: orderToUpdate.userId,
+                status: newStatus,
+            };
+
             await axiosInstance.put(`/orders/${orderId}`, payload);
-            toast.success(`Order #${orderId} status updated to ${newStatus}`);
+            toast.success(`#${orderId} nömrəli sifarişin statusu yeniləndi`);
             fetchOrders();
         } catch (err) {
-            toast.error('Failed to update order status.');
+            toast.error('Statusu yeniləmək mümkün olmadı.');
         }
     };
-
+    
     const getStatusBadge = (status) => {
-        const statusClasses = {
-            'Pending': 'badge-warning',
-            'Completed': 'badge-success',
-            'Canceled': 'badge-danger',
-        };
+        const statusClasses = { 'Pending': 'badge-warning', 'Completed': 'badge-success', 'Canceled': 'badge-danger' };
         return statusClasses[status] || 'badge-secondary';
     };
 
     const columns = [
         { key: 'id', header: 'ID', sortable: true },
-        { key: 'userEmail', header: 'User Email', sortable: true },
-        { key: 'totalPrice', header: 'Total Price', sortable: true, render: (item) => `$${item.totalPrice.toFixed(2)}` },
-        { key: 'orderDate', header: 'Order Date', sortable: true, render: (item) => new Date(item.orderDate).toLocaleString() },
+        { key: 'userEmail', header: 'İstifadəçi Email', sortable: true },
+        { key: 'totalPrice', header: 'Cəmi Qiymət', sortable: true, render: (item) => `$${item.totalPrice.toFixed(2)}` },
+        { key: 'orderDate', header: 'Sifariş Tarixi', sortable: true, render: (item) => new Date(item.orderDate).toLocaleString() },
         { key: 'status', header: 'Status', sortable: true, render: (item) => <span className={`badge ${getStatusBadge(item.status)}`}>{item.status}</span> },
-        { key: 'actions', header: 'Actions', sortable: false, render: (item) => (
-            <>
-                <button className="btn btn-info btn-sm mr-2" onClick={() => handleShowDetails(item)}>
-                    <i className="fas fa-eye"></i> Details
+        { key: 'actions', header: 'Əməliyyatlar', render: (item) => (
+            <div className="btn-group">
+                <button className="btn btn-info btn-sm" onClick={() => handleShowDetails(item)}>
+                    <i className="fas fa-eye"></i> Detallar
                 </button>
-                <div className="btn-group">
-                    <button type="button" className="btn btn-secondary btn-sm dropdown-toggle" data-toggle="dropdown">
-                        Update Status
-                    </button>
-                    <div className="dropdown-menu">
-                        <a className="dropdown-item" href="#" onClick={() => handleStatusChange(item.id, 'Pending')}>Pending</a>
-                        <a className="dropdown-item" href="#" onClick={() => handleStatusChange(item.id, 'Completed')}>Completed</a>
-                        <a className="dropdown-item" href="#" onClick={() => handleStatusChange(item.id, 'Canceled')}>Canceled</a>
-                    </div>
+                <button type="button" className="btn btn-secondary btn-sm dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" />
+                <div className="dropdown-menu">
+                    <a className="dropdown-item" href="#" onClick={() => handleStatusChange(item.id, 'Pending')}>Gözləmədə</a>
+                    <a className="dropdown-item" href="#" onClick={() => handleStatusChange(item.id, 'Completed')}>Tamamlanıb</a>
+                    <a className="dropdown-item" href="#" onClick={() => handleStatusChange(item.id, 'Canceled')}>Ləğv Edilib</a>
                 </div>
-            </>
+            </div>
         )}
     ];
 
     return (
         <div>
-            <h1 className="h3 mb-2 text-gray-800">Order Management</h1>
-            <p className="mb-4">View and manage all user orders.</p>
+            <h1 className="h3 mb-4 text-gray-800">Sifarişlərin İdarə Olunması</h1>
+            <SearchableDataTable data={orders} columns={columns} loading={loading} title="Sifarişlərin Siyahısı" />
             
-            {loading ? <p>Loading orders...</p> : <SearchableDataTable data={orders} columns={columns} />}
-            
-            {/* Order Details Modal */}
             <div className={`modal fade ${showDetailModal ? 'show d-block' : ''}`} tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
                  <div className="modal-dialog modal-lg">
                     <div className="modal-content">
                         <div className="modal-header">
-                            <h5 className="modal-title">Order Details #{selectedOrder?.id}</h5>
+                            <h5 className="modal-title">Sifariş Detalları #{selectedOrder?.id}</h5>
                             <button type="button" className="close" onClick={() => setShowDetailModal(false)}><span>&times;</span></button>
                         </div>
                         <div className="modal-body">
                             {selectedOrder && (
                                 <>
-                                    <p><strong>User:</strong> {selectedOrder.userEmail}</p>
-                                    <p><strong>Total:</strong> ${selectedOrder.totalPrice.toFixed(2)}</p>
+                                    <p><strong>İstifadəçi:</strong> {selectedOrder.userEmail}</p>
+                                    <p><strong>Cəmi Məbləğ:</strong> ${selectedOrder.totalPrice.toFixed(2)}</p>
                                     <hr/>
-                                    <h6>Items:</h6>
+                                    <h6>Məhsullar:</h6>
                                     <ul className="list-group">
                                         {selectedOrder.orderItems.map(item => (
                                             <li key={item.id} className="list-group-item d-flex justify-content-between align-items-center">

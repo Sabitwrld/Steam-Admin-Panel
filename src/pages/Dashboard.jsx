@@ -1,40 +1,28 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
+import { toast } from 'react-toastify';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 const Dashboard = () => {
     const [stats, setStats] = useState({
         totalRevenue: 0,
-        monthlyRevenue: 0,
-        newUsers: 0,
-        totalOrders: 0
+        newUsersLast30Days: 0,
+        totalOrders: 0,
+        pendingReviews: 0
     });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                // Qeyd: Bu endpointlər backend-də yaradılmalıdır.
-                // Nümunə olaraq, hər şeyi sifarişlər (orders) endpointindən hesablayırıq.
-                const response = await axiosInstance.get('/orders');
-                const orders = response.data.data || [];
-
-                const totalRevenue = orders.reduce((sum, order) => order.status === 'Completed' ? sum + order.totalPrice : sum, 0);
-                const newUsersResponse = await axiosInstance.get('/admin/users'); // Bu endpoint mövcuddur
-                const newUsers = newUsersResponse.data.length;
-
-                setStats({
-                    totalRevenue: totalRevenue,
-                    monthlyRevenue: totalRevenue, // Sadəlik üçün eyni götürülür, backend-də ayrıca hesablanmalıdır
-                    newUsers: newUsers,
-                    totalOrders: orders.length
-                });
-
+                // DÜZƏLİŞ: Vahid statistika endpoint-inə sorğu göndərilir
+                const response = await axiosInstance.get('/admin/statistics');
+                setStats(response.data);
             } catch (error) {
+                toast.error("Dashboard statistikası yüklənərkən xəta baş verdi.");
                 console.error("Failed to fetch dashboard stats", error);
             } finally {
                 setLoading(false);
@@ -44,10 +32,10 @@ const Dashboard = () => {
     }, []);
 
     const salesChartData = {
-        labels: ['January', 'February', 'March', 'April', 'May', 'June'],
+        labels: ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'İyun'],
         datasets: [{
-            label: 'Revenue',
-            data: [1200, 1900, 3000, 5000, 2300, 3200], // Bu məlumatlar da backend-dən gəlməlidir
+            label: 'Gəlir',
+            data: [1200, 1900, 3000, 5000, 2300, 3200], // Gələcəkdə bu məlumatlar backend-dən gəlməlidir
             backgroundColor: 'rgba(78, 115, 223, 1)',
         }]
     };
@@ -55,21 +43,21 @@ const Dashboard = () => {
     return (
         <>
             <div className="d-sm-flex align-items-center justify-content-between mb-4">
-                <h1 className="h3 mb-0 text-gray-800">Dashboard</h1>
+                <h1 className="h3 mb-0 text-gray-800">İdarəetmə Paneli</h1>
             </div>
 
             <div className="row">
-                <StatCard title="Total Revenue" value={`$${stats.totalRevenue.toFixed(2)}`} icon="dollar-sign" color="primary" loading={loading} />
-                <StatCard title="Orders" value={stats.totalOrders} icon="shopping-cart" color="success" loading={loading} />
-                <StatCard title="New Users" value={stats.newUsers} icon="users" color="info" loading={loading} />
-                <StatCard title="Pending Reviews" value="18" icon="comments" color="warning" loading={loading} />
+                <StatCard title="Cəmi Gəlir" value={`$${stats.totalRevenue.toFixed(2)}`} icon="dollar-sign" color="primary" loading={loading} />
+                <StatCard title="Cəmi Sifarişlər" value={stats.totalOrders} icon="shopping-cart" color="success" loading={loading} />
+                <StatCard title="Yeni İstifadəçilər (30 gün)" value={stats.newUsersLast30Days} icon="users" color="info" loading={loading} />
+                <StatCard title="Gözləyən Rəylər" value={stats.pendingReviews} icon="comments" color="warning" loading={loading} />
             </div>
-
+            
             <div className="row">
                 <div className="col-lg-12">
                     <div className="card shadow mb-4">
                         <div className="card-header py-3">
-                            <h6 className="m-0 font-weight-bold text-primary">Revenue Over Time</h6>
+                            <h6 className="m-0 font-weight-bold text-primary">Gəlir Qrafiki</h6>
                         </div>
                         <div className="card-body">
                             <div style={{ height: '320px' }}>
@@ -91,7 +79,7 @@ const StatCard = ({ title, value, icon, color, loading }) => (
                     <div className="col mr-2">
                         <div className={`text-xs font-weight-bold text-${color} text-uppercase mb-1`}>{title}</div>
                         <div className="h5 mb-0 font-weight-bold text-gray-800">
-                            {loading ? 'Loading...' : value}
+                            {loading ? 'Yüklənir...' : value}
                         </div>
                     </div>
                     <div className="col-auto">

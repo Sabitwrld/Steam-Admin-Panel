@@ -16,7 +16,7 @@ const AdminLayout = () => {
       <ul className="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
         <a className="sidebar-brand d-flex align-items-center justify-content-center" href="/dashboard">
           <div className="sidebar-brand-icon rotate-n-15">
-            <i className="fas fa-laugh-wink"></i>
+            <i className="fab fa-steam"></i>
           </div>
           <div className="sidebar-brand-text mx-3">Steam Admin</div>
         </a>
@@ -31,13 +31,13 @@ const AdminLayout = () => {
         <div className="sidebar-heading">Management</div>
         <li className="nav-item">
           <Link className="nav-link" to="/users">
-            <i className="fas fa-fw fa-users"></i>
+            <i className="fas fa-fw fa-user-friends"></i>
             <span>Users</span>
           </Link>
         </li>
         <li className="nav-item">
-          <Link className="nav-link" to="/reviews"> {/* YENİ */}
-            <i className="fas fa-fw fa-comments"></i>
+          <Link className="nav-link" to="/reviews">
+            <i className="fas fa-fw fa-star"></i>
             <span>Reviews</span>
           </Link>
         </li>
@@ -51,19 +51,19 @@ const AdminLayout = () => {
         </li>
         <li className="nav-item">
           <Link className="nav-link" to="/genres">
-            <i className="fas fa-fw fa-theater-masks"></i>
+            <i className="fas fa-fw fa-layer-group"></i>
             <span>Genres</span>
           </Link>
         </li>
         <li className="nav-item">
           <Link className="nav-link" to="/tags">
-            <i className="fas fa-fw fa-tags"></i>
+            <i className="fas fa-fw fa-hashtag"></i>
             <span>Tags</span>
           </Link>
         </li>
          <li className="nav-item">
           <Link className="nav-link" to="/campaigns">
-             <i className="fas fa-fw fa-bullhorn"></i>
+             <i className="fas fa-fw fa-megaphone"></i>
             <span>Campaigns</span>
           </Link>
         </li>
