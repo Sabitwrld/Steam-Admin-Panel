@@ -1,149 +1,154 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Button, Form, Alert } from 'react-bootstrap';
-import SearchableDataTable from '../components/SearchableDataTable';
+// src/pages/VoucherManagement.jsx
+
+import React, { useState, useEffect } from 'react';
+import { DataGrid } from '@mui/x-data-grid';
+import { Box, Typography, TextField, Paper, Button, Modal, IconButton, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import { Edit, Delete } from '@mui/icons-material';
 import axiosInstance from '../api/axiosInstance';
-import { debounce } from 'lodash';
 
 const VoucherManagement = () => {
     const [vouchers, setVouchers] = useState([]);
     const [games, setGames] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [newVoucher, setNewVoucher] = useState({ code: '', applicationId: '', expirationDate: '' });
+    const [searchTerm, setSearchTerm] = useState('');
+    const [modalOpen, setModalOpen] = useState(false);
+    const [formData, setFormData] = useState({ id: null, code: '', applicationId: '' });
 
-    const [pagination, setPagination] = useState({
-        currentPage: 1,
-        totalPages: 1,
-        totalCount: 0,
-        pageSize: 10,
-    });
-    
-    const fetchVouchers = useCallback(async (page = 1, size = 10) => {
+    const fetchVouchers = async () => {
         setLoading(true);
         try {
-            const response = await axiosInstance.get('/api/voucher', {
-                params: { pageNumber: page, pageSize: size },
-            });
-            const { data, currentPage, totalPages, totalCount, pageSize } = response.data;
-            setVouchers(data);
-            setPagination({ currentPage, totalPages, totalCount, pageSize });
-            setError('');
-        } catch (err) {
-            setError('Voucherləri yükləmək mümkün olmadı.');
-        } finally {
-            setLoading(false);
+            const [voucherRes, gamesRes] = await Promise.all([
+                axiosInstance.get('/vouchers'),
+                axiosInstance.get('/catalog'),
+            ]);
+            setVouchers(voucherRes.data);
+            setGames(gamesRes.data);
+        } catch (error) {
+            console.error("Failed to fetch data:", error);
         }
-    }, []);
-
-    const fetchGames = async () => {
-        try {
-            // Səhifələmə olmadan bütün oyunları çəkmək üçün böyük bir pageSize göndəririk
-            const response = await axiosInstance.get('/api/catalog', { params: { pageNumber: 1, pageSize: 1000 } });
-            setGames(response.data.data);
-        } catch (err) {
-            console.error("Oyunları yükləmək mümkün olmadı.");
-        }
-    };
-    
-    useEffect(() => {
-        fetchVouchers(pagination.currentPage, pagination.pageSize);
-    }, [pagination.currentPage, pagination.pageSize, fetchVouchers]);
-    
-    useEffect(() => {
-        fetchGames();
-    }, []);
-
-    const handleCreate = () => {
-        setNewVoucher({ code: '', applicationId: '', expirationDate: '' });
-        setIsModalOpen(true);
+        setLoading(false);
     };
 
-    const handleSave = async () => {
-        if (!newVoucher.code || !newVoucher.applicationId || !newVoucher.expirationDate) {
-            setError("Bütün sahələri doldurun.");
-            return;
-        }
-        try {
-            await axiosInstance.post('/api/voucher', {
-                ...newVoucher,
-                applicationId: parseInt(newVoucher.applicationId),
-                expirationDate: new Date(newVoucher.expirationDate).toISOString()
+    useEffect(() => {
+        fetchVouchers();
+    }, []);
+
+    const handleOpenModal = (voucher = null) => {
+        if (voucher) {
+            setFormData({
+                id: voucher.id,
+                code: voucher.code,
+                applicationId: voucher.applicationId,
             });
-            setIsModalOpen(false);
-            fetchVouchers(1, pagination.pageSize); // İlk səhifəyə qayıt
-        } catch (err) {
-            setError('Voucher yaratmaq mümkün olmadı.');
+        } else {
+            setFormData({ id: null, code: '', applicationId: '' });
+        }
+        setModalOpen(true);
+    };
+    
+    const handleCloseModal = () => setModalOpen(false);
+
+    const handleFormChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleFormSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            if (formData.id) {
+                // Update endpoint yoxdursa, bu hissəni kommentə alın
+                // await axiosInstance.put(`/vouchers/${formData.id}`, formData);
+            } else {
+                await axiosInstance.post('/vouchers', formData);
+            }
+            fetchVouchers();
+            handleCloseModal();
+        } catch (error) {
+            console.error("Failed to save voucher:", error);
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (window.confirm('Are you sure you want to delete this voucher?')) {
+            try {
+                await axiosInstance.delete(`/vouchers/${id}`);
+                fetchVouchers();
+            } catch (error) {
+                console.error("Failed to delete voucher:", error);
+            }
         }
     };
 
     const columns = [
-        { Header: 'ID', accessor: 'id' },
-        { Header: 'Kod', accessor: 'code' },
-        { Header: 'Oyun ID', accessor: 'applicationId' },
-        { Header: 'İstifadə Edilib?', accessor: 'isUsed', Cell: ({ value }) => (value ? 'Bəli' : 'Xeyr') },
+        { field: 'id', headerName: 'ID', width: 250 },
+        { field: 'code', headerName: 'Code', width: 250 },
+        { field: 'gameName', headerName: 'Game', width: 250 },
+        {
+            field: 'actions',
+            headerName: 'Actions',
+            width: 150,
+            renderCell: (params) => (
+                <IconButton onClick={() => handleDelete(params.id)}><Delete /></IconButton>
+            ),
+        },
     ];
-    
-    return (
-        <div>
-            <h1 className="h3 mb-2 text-gray-800">Voucherlərin İdarə Olunması</h1>
-            <p className="mb-4">Yeni voucherlər yaradın və mövcud olanları izləyin.</p>
-            <Button variant="success" onClick={handleCreate} className="mb-3">
-                <i className="fas fa-plus mr-2"></i>Yeni Voucher Yarat
-            </Button>
-            {error && <Alert variant="danger">{error}</Alert>}
-            <SearchableDataTable
-                columns={columns}
-                data={vouchers}
-                loading={loading}
-                onSearch={() => {}} // Bu səhifədə axtarış yoxdur
-                pagination={pagination}
-                onPageChange={(page) => setPagination(p => ({ ...p, currentPage: page }))}
-            />
 
-            <Modal show={isModalOpen} onHide={() => setIsModalOpen(false)}>
-                <Modal.Header closeButton>
-                    <Modal.Title>Yeni Voucher Yarat</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Form>
-                        <Form.Group>
-                            <Form.Label>Voucher Kodu</Form.Label>
-                            <Form.Control
-                                type="text"
-                                value={newVoucher.code}
-                                onChange={(e) => setNewVoucher({ ...newVoucher, code: e.target.value })}
-                            />
-                        </Form.Group>
-                        <Form.Group className="mt-3">
-                            <Form.Label>Oyun</Form.Label>
-                            <Form.Control
-                                as="select"
-                                value={newVoucher.applicationId}
-                                onChange={(e) => setNewVoucher({ ...newVoucher, applicationId: e.target.value })}
+    const filteredData = vouchers.filter((item) =>
+        item.code.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    return (
+        <Box sx={{ width: '100%' }}>
+            <Typography variant="h4" gutterBottom>
+                Voucher Management
+            </Typography>
+            <Button variant="contained" onClick={() => handleOpenModal()} sx={{ mb: 2 }}>
+                Add New Voucher
+            </Button>
+            <TextField
+                label="Search Vouchers"
+                variant="outlined"
+                fullWidth
+                margin="normal"
+                onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <Paper sx={{ height: 650, width: '100%' }}>
+                <DataGrid
+                    rows={filteredData}
+                    columns={columns}
+                    pageSize={10}
+                    rowsPerPageOptions={[10]}
+                    checkboxSelection
+                    disableSelectionOnClick
+                    loading={loading}
+                />
+            </Paper>
+
+            <Modal open={modalOpen} onClose={handleCloseModal}>
+                <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 400, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
+                    <Typography variant="h6">Add New Voucher</Typography>
+                    <form onSubmit={handleFormSubmit}>
+                        <TextField name="code" label="Voucher Code" value={formData.code} onChange={handleFormChange} fullWidth margin="normal" required />
+                        <FormControl fullWidth margin="normal">
+                            <InputLabel id="game-select-label">Game</InputLabel>
+                            <Select
+                                labelId="game-select-label"
+                                name="applicationId"
+                                value={formData.applicationId}
+                                label="Game"
+                                onChange={handleFormChange}
+                                required
                             >
-                                <option value="">Oyun seçin...</option>
                                 {games.map(game => (
-                                    <option key={game.id} value={game.id}>{game.name}</option>
+                                    <MenuItem key={game.id} value={game.id}>{game.name}</MenuItem>
                                 ))}
-                            </Form.Control>
-                        </Form.Group>
-                        <Form.Group className="mt-3">
-                            <Form.Label>Bitmə Tarixi</Form.Label>
-                            <Form.Control
-                                type="datetime-local"
-                                value={newVoucher.expirationDate}
-                                onChange={(e) => setNewVoucher({ ...newVoucher, expirationDate: e.target.value })}
-                            />
-                        </Form.Group>
-                    </Form>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Bağla</Button>
-                    <Button variant="primary" onClick={handleSave}>Yadda Saxla</Button>
-                </Modal.Footer>
+                            </Select>
+                        </FormControl>
+                        <Button type="submit" variant="contained" sx={{ mt: 2 }}>Save</Button>
+                    </form>
+                </Box>
             </Modal>
-        </div>
+        </Box>
     );
 };
 

@@ -34,29 +34,24 @@ const ReviewManagement = () => {
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
-    fetchReviews();
-  }, [filter]);
-
   const fetchReviews = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      let url = '/api/reviews/paged';
-      
-      if (filter === 'pending') {
-        url += '?isApproved=false';
-      } else if (filter === 'approved') {
-        url += '?isApproved=true';
+      const params = {};
+      if (filter !== 'all') {
+        params.isApproved = filter === 'approved';
       }
-      
-      const response = await axiosInstance.get(url);
-      setReviews(response.data);
-    } catch (err) {
-      console.error('Error fetching reviews:', err);
-      setError('Failed to load reviews');
-    } finally {
-      setLoading(false);
+      const response = await axiosInstance.get('/reviews/paged', { params });
+      // Düzəliş: Məlumatlar .items içindədir
+      setReviews(response.data.items); 
+    } catch (error) {
+      console.error('Failed to fetch reviews:', error);
     }
+    setLoading(false);
   };
+
+  fetchReviews();
+}, [filter]); // filter dəyişdikdə yenidən sorğu göndər
 
   const handleApprove = async (reviewId) => {
     try {

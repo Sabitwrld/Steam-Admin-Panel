@@ -1,135 +1,74 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Button, Form, Alert } from 'react-bootstrap';
-import SearchableDataTable from '../components/SearchableDataTable';
+// src/pages/OrderManagement.jsx
+
+import React, { useState, useEffect } from 'react';
+import { DataGrid } from '@mui/x-data-grid';
+import { Box, Typography, TextField, Paper } from '@mui/material';
 import axiosInstance from '../api/axiosInstance';
-import { debounce } from 'lodash';
 
 const OrderManagement = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [editingOrder, setEditingOrder] = useState(null);
-
-    const [pagination, setPagination] = useState({
-        currentPage: 1,
-        totalPages: 1,
-        totalCount: 0,
-        pageSize: 10,
-    });
     const [searchTerm, setSearchTerm] = useState('');
 
-    const fetchOrders = useCallback(async (page = 1, size = 10, search = '') => {
-        setLoading(true);
-        try {
-            // DÜZƏLİŞ: Admin üçün yaradılmış yeni endpoint-ə müraciət edilir
-            const response = await axiosInstance.get('/api/order/all-paged', {
-                params: {
-                    pageNumber: page,
-                    pageSize: size,
-                    searchTerm: search,
-                },
-            });
-            const { data, currentPage, totalPages, totalCount, pageSize } = response.data;
-            setOrders(data);
-            setPagination({ currentPage, totalPages, totalCount, pageSize });
-            setError('');
-        } catch (err) {
-            setError('Sifarişləri yükləmək mümkün olmadı.');
-            console.error(err);
-        } finally {
+    useEffect(() => {
+        const fetchOrders = async () => {
+            setLoading(true);
+            try {
+                const response = await axiosInstance.get('/admin/orders');
+                // Backend-dən gələn hər bir order-in "id"si olduğundan əmin olun
+                const ordersWithId = response.data.map(order => ({
+                    ...order,
+                    id: order.id || order.orderId, // Əgər id yoxdursa, alternativ bir unikal sahə
+                }));
+                setOrders(ordersWithId);
+            } catch (error) {
+                console.error("Failed to fetch orders:", error);
+            }
             setLoading(false);
-        }
+        };
+
+        fetchOrders();
     }, []);
 
-    const debouncedFetch = useCallback(debounce(fetchOrders, 300), [fetchOrders]);
-
-    useEffect(() => {
-        debouncedFetch(pagination.currentPage, pagination.pageSize, searchTerm);
-    }, [pagination.currentPage, pagination.pageSize, searchTerm, debouncedFetch]);
-
-    const handleEdit = (order) => {
-        setEditingOrder({ ...order });
-    };
-
-    const handleSave = async () => {
-        if (!editingOrder) return;
-        try {
-            // DÜZƏLİŞ: Statusu yeniləmək üçün düzgün endpoint-ə müraciət
-            await axiosInstance.put(`/api/order/${editingOrder.id}/status?status=${editingOrder.status}`);
-            setEditingOrder(null);
-            fetchOrders(pagination.currentPage, pagination.pageSize, searchTerm); // Cədvəli yenilə
-        } catch (err) {
-            setError('Sifariş statusunu yeniləmək mümkün olmadı.');
-            console.error(err);
-        }
-    };
-
-    const handleStatusChange = (e) => {
-        setEditingOrder(prev => ({ ...prev, status: e.target.value }));
-    };
-
     const columns = [
-        { Header: 'ID', accessor: 'id' },
-        // DÜZƏLİŞ: İstifadəçi e-poçtunu göstərən yeni sütun
-        { Header: 'İstifadəçi', accessor: 'userEmail' },
-        {
-            Header: 'Sifariş Tarixi',
-            accessor: 'orderDate',
-            Cell: ({ value }) => new Date(value).toLocaleDateString(),
-        },
-        { Header: 'Məhsul Sayı', accessor: 'itemCount' },
-        { Header: 'Toplam Məbləğ', accessor: 'totalPrice', Cell: ({ value }) => `${value.toFixed(2)} AZN` },
-        { Header: 'Status', accessor: 'status' },
-        {
-            Header: 'Əməliyyatlar',
-            accessor: 'actions',
-            Cell: ({ row }) => (
-                <Button variant="primary" size="sm" onClick={() => handleEdit(row.original)}>
-                    Redaktə Et
-                </Button>
-            ),
-        },
+        { field: 'id', headerName: 'Order ID', width: 250 },
+        { field: 'userName', headerName: 'User', width: 150 },
+        { field: 'totalPrice', headerName: 'Total Price', width: 130, type: 'number', valueFormatter: ({ value }) => `$${value.toFixed(2)}` },
+        { field: 'orderDate', headerName: 'Order Date', width: 200, type: 'dateTime', valueGetter: ({ value }) => value && new Date(value) },
+        { field: 'status', headerName: 'Status', width: 130 },
+        // Gələcəkdə "Actions" sütunu əlavə edə bilərsiniz
     ];
 
-    return (
-        <div>
-            <h1 className="h3 mb-4 text-gray-800">Sifarişlərin İdarə Olunması</h1>
-            {error && <Alert variant="danger">{error}</Alert>}
-            <SearchableDataTable
-                columns={columns}
-                data={orders}
-                loading={loading}
-                onSearch={setSearchTerm}
-                pagination={pagination}
-                onPageChange={(page) => setPagination(prev => ({ ...prev, currentPage: page }))}
-            />
+    const filteredData = orders.filter((item) =>
+        Object.values(item).some(val =>
+            String(val).toLowerCase().includes(searchTerm.toLowerCase())
+        )
+    );
 
-            <Modal show={editingOrder !== null} onHide={() => setEditingOrder(null)}>
-                <Modal.Header closeButton>
-                    <Modal.Title>Sifariş Statusunu Redaktə Et</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Form>
-                        <Form.Group>
-                            <Form.Label>Status</Form.Label>
-                            <Form.Control
-                                as="select"
-                                value={editingOrder?.status || ''}
-                                onChange={handleStatusChange}
-                            >
-                                <option value="Pending">Gözləmədə</option>
-                                <option value="Completed">Tamamlanıb</option>
-                                <option value="Cancelled">Ləğv Edilib</option>
-                            </Form.Control>
-                        </Form.Group>
-                    </Form>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setEditingOrder(null)}>Bağla</Button>
-                    <Button variant="primary" onClick={handleSave}>Yadda Saxla</Button>
-                </Modal.Footer>
-            </Modal>
-        </div>
+    return (
+        <Box sx={{ width: '100%' }}>
+            <Typography variant="h4" gutterBottom>
+                Order Management
+            </Typography>
+            <TextField
+                label="Search Orders"
+                variant="outlined"
+                fullWidth
+                margin="normal"
+                onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <Paper sx={{ height: 650, width: '100%' }}>
+                <DataGrid
+                    rows={filteredData}
+                    columns={columns}
+                    pageSize={10}
+                    rowsPerPageOptions={[10]}
+                    checkboxSelection
+                    disableSelectionOnClick
+                    loading={loading}
+                />
+            </Paper>
+        </Box>
     );
 };
 

@@ -37,21 +37,21 @@ const GenreManagement = () => {
   });
 
   useEffect(() => {
-    fetchGenres();
-  }, []);
-
   const fetchGenres = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const response = await axiosInstance.get('/api/genres');
-      setGenres(response.data);
-    } catch (err) {
-      console.error('Error fetching genres:', err);
-      setError('Failed to load genres');
-    } finally {
-      setLoading(false);
+      // Düzəliş: Sorğu axiosInstance ilə olmalıdır
+      const response = await axiosInstance.get('/genres');
+      // Düzəliş: Məlumatı response.data-dan götürün
+      setGenres(response.data); 
+    } catch (error) {
+      console.error("Failed to fetch genres:", error);
     }
+    setLoading(false);
   };
+
+  fetchGenres();
+}, []);
 
   const handleCreateGenre = () => {
     setSelectedGenre(null);
