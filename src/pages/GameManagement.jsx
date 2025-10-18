@@ -1,482 +1,205 @@
 import React, { useState, useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Chip,
-  OutlinedInput,
-  IconButton,
-  Typography,
-  Alert,
-  CircularProgress,
-  DialogContentText,
-  DialogContentText as ConfirmDialog
-} from '@mui/material';
-import {
-  DataGrid,
-  GridActionsCellItem,
-  GridToolbarContainer,
-  GridToolbarExport,
-  GridToolbarFilterButton,
-  GridToolbarDensitySelector
-} from '@mui/x-data-grid';
-import {
-  Add as AddIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon
-} from '@mui/icons-material';
 import axiosInstance from '../api/axiosInstance';
-
-const ITEM_HEIGHT = 48;
-const ITEM_PADDING_TOP = 8;
-const MenuProps = {
-  PaperProps: {
-    style: {
-      maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
-      width: 250,
-    },
-  },
-};
+import { useForm } from 'react-hook-form';
+import { toast } from 'react-toastify';
+import SearchableDataTable from '../components/SearchableDataTable'; // Import the new component
 
 const GameManagement = () => {
-  const [games, setGames] = useState([]);
-  const [genres, setGenres] = useState([]);
-  const [tags, setTags] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedGame, setSelectedGame] = useState(null);
-  const [gameToDelete, setGameToDelete] = useState(null);
-  const [error, setError] = useState('');
+    const [games, setGames] = useState([]);
+    const [genres, setGenres] = useState([]);
+    const [tags, setTags] = useState([]);
+    const [loading, setLoading] = useState(true);
+    
+    const [showModal, setShowModal] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [currentGame, setCurrentGame] = useState(null);
 
-  const {
-    control,
-    handleSubmit,
-    reset,
-    formState: { errors },
-    watch
-  } = useForm({
-    defaultValues: {
-      name: '',
-      description: '',
-      price: '',
-      releaseDate: '',
-      developer: '',
-      publisher: '',
-      genreIds: [],
-      tagIds: []
-    }
-  });
+    const { register, handleSubmit, reset, setValue, control } = useForm();
+    
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            const [gamesRes, genresRes, tagsRes] = await Promise.all([
+                axiosInstance.get('/ApplicationCatalog'),
+                axiosInstance.get('/genres'),
+                axiosInstance.get('/tags')
+            ]);
+            setGames(gamesRes.data.data || []);
+            setGenres(genresRes.data.data || []);
+            setTags(tagsRes.data.data || []);
+        } catch (err) {
+            toast.error('Failed to fetch data.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  // Fetch games data
-  const fetchGames = async () => {
-    try {
-      setLoading(true);
-      const response = await axiosInstance.get('/catalog');
-      setGames(response.data);
-    } catch (error) {
-      console.error('Error fetching games:', error);
-      setError('Failed to fetch games');
-    } finally {
-      setLoading(false);
-    }
-  };
+    useEffect(() => {
+        fetchData();
+    }, []);
 
-  // Fetch genres data
-const fetchGenres = async () => {
-    try {
-      const response = await axiosInstance.get('/genres'); // Dəyişdirildi
-      setGenres(response.data.data); // .data əlavə edildi
-    } catch (error) {
-      console.error('Error fetching genres:', error);
-    }
-};
+    const handleShowModal = (game = null) => {
+        reset();
+        if (game) {
+            setIsEditing(true);
+            setCurrentGame(game);
+            setValue('name', game.name);
+            setValue('description', game.description);
+            setValue('price', game.price);
+            setValue('developer', game.developer);
+            setValue('publisher', game.publisher);
+            setValue('releaseDate', new Date(game.releaseDate).toISOString().slice(0, 10));
+            setValue('genreIds', game.genres.map(g => g.id.toString()));
+            setValue('tagIds', game.tags.map(t => t.id.toString()));
+        } else {
+            setIsEditing(false);
+            setCurrentGame(null);
+        }
+        setShowModal(true);
+    };
 
- // Fetch tags data
-const fetchTags = async () => {
-    try {
-      const response = await axiosInstance.get('/tags'); // Dəyişdirildi
-      setTags(response.data.data); // .data əlavə edildi
-    } catch (error) {
-      console.error('Error fetching tags:', error);
-    }
-};
+    const handleCloseModal = () => setShowModal(false);
 
-  useEffect(() => {
-    fetchGames();
-    fetchGenres();
-    fetchTags();
-  }, []);
+    const onSubmit = async (data) => {
+        const payload = {
+            ...data,
+            price: parseFloat(data.price),
+            releaseDate: new Date(data.releaseDate).toISOString(),
+            genreIds: data.genreIds.map(id => parseInt(id)),
+            tagIds: data.tagIds.map(id => parseInt(id))
+        };
+        
+        try {
+            if (isEditing) {
+                await axiosInstance.put(`/ApplicationCatalog/${currentGame.id}`, { id: currentGame.id, ...payload });
+                toast.success(`Game "${payload.name}" updated successfully!`);
+            } else {
+                await axiosInstance.post('/ApplicationCatalog', payload);
+                toast.success(`Game "${payload.name}" added successfully!`);
+            }
+            fetchData();
+            handleCloseModal();
+        } catch (err) {
+            toast.error(`Failed to ${isEditing ? 'update' : 'add'} game.`);
+        }
+    };
+    
+    const handleDelete = async (id) => {
+        if (window.confirm('Are you sure you want to delete this game?')) {
+            try {
+                await axiosInstance.delete(`/ApplicationCatalog/${id}`);
+                toast.success('Game deleted successfully.');
+                fetchData();
+            } catch (err) {
+                toast.error('Failed to delete game.');
+            }
+        }
+    };
 
-  // Handle form submission
-  const onSubmit = async (data) => {
-    try {
-      setLoading(true);
-      setError('');
+    const columns = [
+        { key: 'name', header: 'Name', sortable: true },
+        { key: 'price', header: 'Price', sortable: true, render: (item) => `$${item.price.toFixed(2)}` },
+        { key: 'developer', header: 'Developer', sortable: true },
+        { key: 'publisher', header: 'Publisher', sortable: true },
+        { key: 'actions', header: 'Actions', sortable: false, render: (item) => (
+            <>
+                <button className="btn btn-warning btn-sm mr-2" onClick={() => handleShowModal(item)}>
+                    <i className="fas fa-edit"></i>
+                </button>
+                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(item.id)}>
+                    <i className="fas fa-trash"></i>
+                </button>
+            </>
+        )}
+    ];
 
-      const gameData = {
-        ...data,
-        price: parseFloat(data.price),
-        releaseDate: new Date(data.releaseDate).toISOString()
-      };
+    return (
+        <div>
+            <div className="d-sm-flex align-items-center justify-content-between mb-4">
+                <h1 className="h3 mb-0 text-gray-800">Game Management</h1>
+                <button className="btn btn-primary btn-sm" onClick={() => handleShowModal()}>
+                    <i className="fas fa-plus fa-sm text-white-50"></i> Add New Game
+                </button>
+            </div>
 
-      if (selectedGame) {
-        // Update existing game
-        await axiosInstance.put(`/catalog/${selectedGame.id}`, gameData);
-      } else {
-        // Create new game
-        await axiosInstance.post('/catalog', gameData);
-      }
-
-      setDialogOpen(false);
-      reset();
-      setSelectedGame(null);
-      fetchGames();
-    } catch (error) {
-      console.error('Error saving game:', error);
-      setError(error.response?.data?.message || 'Failed to save game');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle edit game
-  const handleEditGame = (game) => {
-    setSelectedGame(game);
-    reset({
-      name: game.name || '',
-      description: game.description || '',
-      price: game.price || '',
-      releaseDate: game.releaseDate ? new Date(game.releaseDate).toISOString().split('T')[0] : '',
-      developer: game.developer || '',
-      publisher: game.publisher || '',
-      genreIds: game.genreIds || [],
-      tagIds: game.tagIds || []
-    });
-    setDialogOpen(true);
-  };
-
-  // Handle delete game
-  const handleDeleteGame = async () => {
-    try {
-      setLoading(true);
-      await axiosInstance.delete(`/catalog/${gameToDelete.id}`);
-      setDeleteDialogOpen(false);
-      setGameToDelete(null);
-      fetchGames();
-    } catch (error) {
-      console.error('Error deleting game:', error);
-      setError(error.response?.data?.message || 'Failed to delete game');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle add new game
-  const handleAddGame = () => {
-    setSelectedGame(null);
-    reset();
-    setDialogOpen(true);
-  };
-
-  // DataGrid columns
-  const columns = [
-    { field: 'id', headerName: 'ID', width: 90 },
-    { field: 'name', headerName: 'Name', width: 200, flex: 1 },
-    { field: 'price', headerName: 'Price', width: 120, type: 'number' },
-    { 
-      field: 'releaseDate', 
-      headerName: 'Release Date', 
-      width: 150,
-      valueFormatter: (params) => {
-        if (!params.value) return '';
-        return new Date(params.value).toLocaleDateString();
-      }
-    },
-    {
-      field: 'actions',
-      type: 'actions',
-      headerName: 'Actions',
-      width: 120,
-      getActions: (params) => [
-        <GridActionsCellItem
-          icon={<EditIcon />}
-          label="Edit"
-          onClick={() => handleEditGame(params.row)}
-        />,
-        <GridActionsCellItem
-          icon={<DeleteIcon />}
-          label="Delete"
-          onClick={() => {
-            setGameToDelete(params.row);
-            setDeleteDialogOpen(true);
-          }}
-        />
-      ]
-    }
-  ];
-
-  // Custom toolbar
-  const CustomToolbar = () => (
-    <GridToolbarContainer>
-      <Button
-        color="primary"
-        startIcon={<AddIcon />}
-        onClick={handleAddGame}
-      >
-        Add New Game
-      </Button>
-      <GridToolbarFilterButton />
-      <GridToolbarDensitySelector />
-      <GridToolbarExport />
-    </GridToolbarContainer>
-  );
-
-  return (
-    <Box>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Game Management
-      </Typography>
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-          {error}
-        </Alert>
-      )}
-
-      <Box sx={{ height: 600, width: '100%' }}>
-        <DataGrid
-          rows={games}
-          columns={columns}
-          loading={loading}
-          pageSizeOptions={[5, 10, 25]}
-          initialState={{
-            pagination: {
-              paginationModel: { page: 0, pageSize: 10 },
-            },
-          }}
-          slots={{
-            toolbar: CustomToolbar,
-          }}
-          disableRowSelectionOnClick
-        />
-      </Box>
-
-      {/* Add/Edit Game Dialog */}
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          {selectedGame ? 'Edit Game' : 'Add New Game'}
-        </DialogTitle>
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <DialogContent>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-              <Controller
-                name="name"
-                control={control}
-                rules={{ required: 'Name is required' }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Name"
-                    fullWidth
-                    error={!!errors.name}
-                    helperText={errors.name?.message}
-                  />
-                )}
-              />
-
-              <Controller
-                name="description"
-                control={control}
-                rules={{ required: 'Description is required' }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Description"
-                    fullWidth
-                    multiline
-                    rows={3}
-                    error={!!errors.description}
-                    helperText={errors.description?.message}
-                  />
-                )}
-              />
-
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <Controller
-                  name="price"
-                  control={control}
-                  rules={{ 
-                    required: 'Price is required',
-                    min: { value: 0, message: 'Price must be positive' }
-                  }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label="Price"
-                      type="number"
-                      fullWidth
-                      error={!!errors.price}
-                      helperText={errors.price?.message}
-                    />
-                  )}
-                />
-
-                <Controller
-                  name="releaseDate"
-                  control={control}
-                  rules={{ required: 'Release date is required' }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label="Release Date"
-                      type="date"
-                      fullWidth
-                      InputLabelProps={{ shrink: true }}
-                      error={!!errors.releaseDate}
-                      helperText={errors.releaseDate?.message}
-                    />
-                  )}
-                />
-              </Box>
-
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <Controller
-                  name="developer"
-                  control={control}
-                  rules={{ required: 'Developer is required' }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label="Developer"
-                      fullWidth
-                      error={!!errors.developer}
-                      helperText={errors.developer?.message}
-                    />
-                  )}
-                />
-
-                <Controller
-                  name="publisher"
-                  control={control}
-                  rules={{ required: 'Publisher is required' }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label="Publisher"
-                      fullWidth
-                      error={!!errors.publisher}
-                      helperText={errors.publisher?.message}
-                    />
-                  )}
-                />
-              </Box>
-
-              <Controller
-                name="genreIds"
-                control={control}
-                render={({ field }) => (
-                  <FormControl fullWidth>
-                    <InputLabel>Genres</InputLabel>
-                    <Select
-                      {...field}
-                      multiple
-                      input={<OutlinedInput label="Genres" />}
-                      renderValue={(selected) => (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                          {selected.map((value) => {
-                            const genre = genres.find(g => g.id === value);
-                            return (
-                              <Chip key={value} label={genre?.name || value} />
-                            );
-                          })}
-                        </Box>
-                      )}
-                      MenuProps={MenuProps}
-                    >
-                      {genres.map((genre) => (
-                        <MenuItem key={genre.id} value={genre.id}>
-                          {genre.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                )}
-              />
-
-              <Controller
-                name="tagIds"
-                control={control}
-                render={({ field }) => (
-                  <FormControl fullWidth>
-                    <InputLabel>Tags</InputLabel>
-                    <Select
-                      {...field}
-                      multiple
-                      input={<OutlinedInput label="Tags" />}
-                      renderValue={(selected) => (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                          {selected.map((value) => {
-                            const tag = tags.find(t => t.id === value);
-                            return (
-                              <Chip key={value} label={tag?.name || value} />
-                            );
-                          })}
-                        </Box>
-                      )}
-                      MenuProps={MenuProps}
-                    >
-                      {tags.map((tag) => (
-                        <MenuItem key={tag.id} value={tag.id}>
-                          {tag.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                )}
-              />
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button type="submit" variant="contained" disabled={loading}>
-              {loading ? <CircularProgress size={20} /> : 'Save'}
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Confirm Delete</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to delete the game "{gameToDelete?.name}"? This action cannot be undone.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button 
-            onClick={handleDeleteGame} 
-            color="error" 
-            variant="contained"
-            disabled={loading}
-          >
-            {loading ? <CircularProgress size={20} /> : 'Delete'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
-  );
+            {loading ? <p>Loading data...</p> : <SearchableDataTable data={games} columns={columns} />}
+            
+            {/* Modal */}
+            <div className={`modal fade ${showModal ? 'show d-block' : ''}`} tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                {/* ... (Modal content remains the same as previous step) ... */}
+                <div className="modal-dialog modal-xl">
+                    <div className="modal-content">
+                        <div className="modal-header">
+                            <h5 className="modal-title">{isEditing ? 'Edit Game' : 'Add New Game'}</h5>
+                            <button type="button" className="close" onClick={handleCloseModal}><span>&times;</span></button>
+                        </div>
+                        <form onSubmit={handleSubmit(onSubmit)}>
+                            <div className="modal-body">
+                                <div className="row">
+                                    <div className="col-md-6">
+                                        <div className="form-group">
+                                            <label>Name</label>
+                                            <input type="text" className="form-control" {...register('name', { required: true })} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Description</label>
+                                            <textarea className="form-control" rows="5" {...register('description', { required: true })}></textarea>
+                                        </div>
+                                        <div className="form-row">
+                                            <div className="form-group col-md-6">
+                                                <label>Price</label>
+                                                <input type="number" step="0.01" className="form-control" {...register('price', { required: true, valueAsNumber: true })} />
+                                            </div>
+                                            <div className="form-group col-md-6">
+                                                <label>Release Date</label>
+                                                <input type="date" className="form-control" {...register('releaseDate', { required: true })} />
+                                            </div>
+                                        </div>
+                                        <div className="form-row">
+                                            <div className="form-group col-md-6">
+                                                <label>Developer</label>
+                                                <input type="text" className="form-control" {...register('developer', { required: true })} />
+                                            </div>
+                                            <div className="form-group col-md-6">
+                                                <label>Publisher</label>
+                                                <input type="text" className="form-control" {...register('publisher', { required: true })} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="col-md-3">
+                                        <h5>Genres</h5>
+                                        <div className="overflow-auto" style={{ maxHeight: '300px', border: '1px solid #ddd', padding: '10px' }}>
+                                            {genres.map(genre => (
+                                                <div className="form-check" key={genre.id}>
+                                                    <input className="form-check-input" type="checkbox" value={genre.id} {...register('genreIds')} />
+                                                    <label className="form-check-label">{genre.name}</label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="col-md-3">
+                                        <h5>Tags</h5>
+                                        <div className="overflow-auto" style={{ maxHeight: '300px', border: '1px solid #ddd', padding: '10px' }}>
+                                            {tags.map(tag => (
+                                                <div className="form-check" key={tag.id}>
+                                                    <input className="form-check-input" type="checkbox" value={tag.id} {...register('tagIds')} />
+                                                    <label className="form-check-label">{tag.name}</label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>Close</button>
+                                <button type="submit" className="btn btn-primary">Save Game</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 export default GameManagement;

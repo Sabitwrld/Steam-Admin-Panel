@@ -1,187 +1,163 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  TextField,
-  Button,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  IconButton,
-  Typography,
-  Alert,
-  CircularProgress,
-  Paper,
-  Divider
-} from '@mui/material';
-import {
-  Add as AddIcon,
-  Delete as DeleteIcon
-} from '@mui/icons-material';
 import axiosInstance from '../api/axiosInstance';
+import { useForm } from 'react-hook-form';
 
 const GenreManagement = () => {
-  const [genres, setGenres] = useState([]);
-  const [newGenreName, setNewGenreName] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+    const [genres, setGenres] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    
+    // Modal state
+    const [showModal, setShowModal] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [currentGenre, setCurrentGenre] = useState(null);
 
-  // Fetch genres data
-  const fetchGenres = async () => {
-    try {
-      setLoading(true);
-      const response = await axiosInstance.get('/genres'); 
-      setGenres(response.data.data);
-    } catch (error) {
-      console.error('Error fetching genres:', error);
-      setError('Failed to fetch genres');
-    } finally {
-      setLoading(false);
-    }
-  };
+    const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
+    
+    const fetchGenres = async () => {
+        try {
+            setLoading(true);
+            const response = await axiosInstance.get('/genres');
+            setGenres(response.data.data || []);
+            setError('');
+        } catch (err) {
+            setError('Failed to fetch genres.');
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  useEffect(() => {
-    fetchGenres();
-  }, []);
+    useEffect(() => {
+        fetchGenres();
+    }, []);
 
-  // Handle add new genre
-  const handleAddGenre = async () => {
-    if (!newGenreName.trim()) {
-      setError('Genre name is required');
-      return;
-    }
+    const handleShowModal = (genre = null) => {
+        reset();
+        if (genre) {
+            setIsEditing(true);
+            setCurrentGenre(genre);
+            setValue('name', genre.name);
+        } else {
+            setIsEditing(false);
+            setCurrentGenre(null);
+        }
+        setShowModal(true);
+    };
 
-    try {
-      setLoading(true);
-      setError('');
-      
-      await axiosInstance.post('/genres', { 
-        name: newGenreName.trim()
-      });
+    const handleCloseModal = () => {
+        setShowModal(false);
+    };
 
-      setNewGenreName('');
-      fetchGenres();
-    } catch (error) {
-      console.error('Error adding genre:', error);
-      setError(error.response?.data?.message || 'Failed to add genre');
-    } finally {
-      setLoading(false);
-    }
-  };
+    const onSubmit = async (data) => {
+        try {
+            if (isEditing) {
+                await axiosInstance.put(`/genres/${currentGenre.id}`, { id: currentGenre.id, ...data });
+            } else {
+                await axiosInstance.post('/genres', data);
+            }
+            fetchGenres();
+            handleCloseModal();
+        } catch (err) {
+            console.error('Failed to save genre:', err);
+            setError(`Failed to ${isEditing ? 'update' : 'add'} genre.`);
+        }
+    };
+    
+    const handleDelete = async (id) => {
+        if (window.confirm('Are you sure you want to delete this genre?')) {
+            try {
+                await axiosInstance.delete(`/genres/${id}`);
+                fetchGenres();
+            } catch (err) {
+                console.error('Failed to delete genre:', err);
+                setError('Failed to delete genre.');
+            }
+        }
+    };
 
-  // Handle delete genre
-  const handleDeleteGenre = async (genreId, genreName) => {
-    if (!window.confirm(`Are you sure you want to delete the genre "${genreName}"?`)) {
-      return;
-    }
+    return (
+        <div>
+            <div className="d-sm-flex align-items-center justify-content-between mb-4">
+                <h1 className="h3 mb-0 text-gray-800">Genre Management</h1>
+                <button className="btn btn-primary btn-sm" onClick={() => handleShowModal()}>
+                    <i className="fas fa-plus fa-sm text-white-50"></i> Add New Genre
+                </button>
+            </div>
 
-    try {
-      setLoading(true);
-      setError('');
-      
-      await axiosInstance.delete(`/genres/${genreId}`); 
-      fetchGenres();
-    } catch (error) {
-      console.error('Error deleting genre:', error);
-      setError(error.response?.data?.message || 'Failed to delete genre');
-    } finally {
-      setLoading(false);
-    }
-  };
+            {error && <div className="alert alert-danger">{error}</div>}
 
-  // Handle key press for adding genre
-  const handleKeyPress = (event) => {
-    if (event.key === 'Enter') {
-      handleAddGenre();
-    }
-  };
+            <div className="card shadow mb-4">
+                <div className="card-header py-3">
+                    <h6 className="m-0 font-weight-bold text-primary">Genres List</h6>
+                </div>
+                <div className="card-body">
+                    <div className="table-responsive">
+                        {loading ? <p>Loading...</p> : (
+                            <table className="table table-bordered" id="dataTable" width="100%" cellSpacing="0">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Name</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {genres.map(genre => (
+                                        <tr key={genre.id}>
+                                            <td>{genre.id}</td>
+                                            <td>{genre.name}</td>
+                                            <td>
+                                                <button className="btn btn-warning btn-sm mr-2" onClick={() => handleShowModal(genre)}>
+                                                    <i className="fas fa-edit"></i>
+                                                </button>
+                                                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(genre.id)}>
+                                                    <i className="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                </div>
+            </div>
 
-  return (
-    <Box>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Genre Management
-      </Typography>
+            {/* Bootstrap Modal */}
+            <div className={`modal fade ${showModal ? 'show d-block' : ''}`} tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                <div className="modal-dialog">
+                    <div className="modal-content">
+                        <div className="modal-header">
+                            <h5 className="modal-title">{isEditing ? 'Edit Genre' : 'Add Genre'}</h5>
+                            <button type="button" className="close" onClick={handleCloseModal}>
+                                <span>&times;</span>
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmit(onSubmit)}>
+                            <div className="modal-body">
+                                <div className="form-group">
+                                    <label htmlFor="name">Genre Name</label>
+                                    <input
+                                        type="text"
+                                        className={`form-control ${errors.name ? 'is-invalid' : ''}`}
+                                        id="name"
+                                        {...register('name', { required: 'Genre name is required' })}
+                                    />
+                                    {errors.name && <div className="invalid-feedback">{errors.name.message}</div>}
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>Close</button>
+                                <button type="submit" className="btn btn-primary">Save changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-          {error}
-        </Alert>
-      )}
-
-      {/* Add Genre Section */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Add New Genre
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-          <TextField
-            label="Genre Name"
-            value={newGenreName}
-            onChange={(e) => setNewGenreName(e.target.value)}
-            onKeyPress={handleKeyPress}
-            fullWidth
-            disabled={loading}
-            placeholder="Enter genre name..."
-          />
-          <Button
-            variant="contained"
-            startIcon={loading ? <CircularProgress size={20} /> : <AddIcon />}
-            onClick={handleAddGenre}
-            disabled={loading || !newGenreName.trim()}
-          >
-            Add Genre
-          </Button>
-        </Box>
-      </Paper>
-
-      {/* Genres List */}
-      <Paper>
-        <Box sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            Existing Genres ({genres.length})
-          </Typography>
-        </Box>
-        <Divider />
-        
-        {loading && genres.length === 0 ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-            <CircularProgress />
-          </Box>
-        ) : genres.length === 0 ? (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-            <Typography variant="body1" color="text.secondary">
-              No genres found. Add your first genre above.
-            </Typography>
-          </Box>
-        ) : (
-          <List>
-            {genres.map((genre, index) => (
-              <React.Fragment key={genre.id}>
-                <ListItem>
-                  <ListItemText
-                    primary={genre.name}
-                    secondary={`ID: ${genre.id}`}
-                  />
-                  <ListItemSecondaryAction>
-                    <IconButton
-                      edge="end"
-                      aria-label="delete"
-                      onClick={() => handleDeleteGenre(genre.id, genre.name)}
-                      disabled={loading}
-                      color="error"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </ListItemSecondaryAction>
-                </ListItem>
-                {index < genres.length - 1 && <Divider />}
-              </React.Fragment>
-            ))}
-          </List>
-        )}
-      </Paper>
-    </Box>
-  );
+        </div>
+    );
 };
 
 export default GenreManagement;

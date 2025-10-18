@@ -1,187 +1,163 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  TextField,
-  Button,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  IconButton,
-  Typography,
-  Alert,
-  CircularProgress,
-  Paper,
-  Divider
-} from '@mui/material';
-import {
-  Add as AddIcon,
-  Delete as DeleteIcon
-} from '@mui/icons-material';
 import axiosInstance from '../api/axiosInstance';
+import { useForm } from 'react-hook-form';
 
 const TagManagement = () => {
-  const [tags, setTags] = useState([]);
-  const [newTagName, setNewTagName] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+    const [tags, setTags] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    
+    // Modal state
+    const [showModal, setShowModal] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [currentTag, setCurrentTag] = useState(null);
 
-  // Fetch tags data
-  const fetchTags = async () => {
-    try {
-      setLoading(true);
-      const response = await axiosInstance.get('/tags'); // Dəyişdirildi
-      setTags(response.data.data);
-    } catch (error) {
-      console.error('Error fetching tags:', error);
-      setError('Failed to fetch tags');
-    } finally {
-      setLoading(false);
-    }
-  };
+    const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
+    
+    const fetchTags = async () => {
+        try {
+            setLoading(true);
+            const response = await axiosInstance.get('/tags');
+            setTags(response.data.data || []);
+            setError('');
+        } catch (err) {
+            setError('Failed to fetch tags.');
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  useEffect(() => {
-    fetchTags();
-  }, []);
+    useEffect(() => {
+        fetchTags();
+    }, []);
 
-  // Handle add new tag
-  const handleAddTag = async () => {
-    if (!newTagName.trim()) {
-      setError('Tag name is required');
-      return;
-    }
+    const handleShowModal = (tag = null) => {
+        reset();
+        if (tag) {
+            setIsEditing(true);
+            setCurrentTag(tag);
+            setValue('name', tag.name);
+        } else {
+            setIsEditing(false);
+            setCurrentTag(null);
+        }
+        setShowModal(true);
+    };
 
-    try {
-      setLoading(true);
-      setError('');
-      
-      await axiosInstance.post('/tags', { // Dəyişdirildi
-        name: newTagName.trim()
-      });
+    const handleCloseModal = () => {
+        setShowModal(false);
+    };
 
-      setNewTagName('');
-      fetchTags();
-    } catch (error) {
-      console.error('Error adding tag:', error);
-      setError(error.response?.data?.message || 'Failed to add tag');
-    } finally {
-      setLoading(false);
-    }
-  };
+    const onSubmit = async (data) => {
+        try {
+            if (isEditing) {
+                await axiosInstance.put(`/tags/${currentTag.id}`, { id: currentTag.id, ...data });
+            } else {
+                await axiosInstance.post('/tags', data);
+            }
+            fetchTags();
+            handleCloseModal();
+        } catch (err) {
+            console.error('Failed to save tag:', err);
+            setError(`Failed to ${isEditing ? 'update' : 'add'} tag.`);
+        }
+    };
+    
+    const handleDelete = async (id) => {
+        if (window.confirm('Are you sure you want to delete this tag?')) {
+            try {
+                await axiosInstance.delete(`/tags/${id}`);
+                fetchTags();
+            } catch (err) {
+                console.error('Failed to delete tag:', err);
+                setError('Failed to delete tag.');
+            }
+        }
+    };
 
-  // Handle delete tag
-  const handleDeleteTag = async (tagId, tagName) => {
-    if (!window.confirm(`Are you sure you want to delete the tag "${tagName}"?`)) {
-      return;
-    }
+    return (
+        <div>
+            <div className="d-sm-flex align-items-center justify-content-between mb-4">
+                <h1 className="h3 mb-0 text-gray-800">Tag Management</h1>
+                <button className="btn btn-primary btn-sm" onClick={() => handleShowModal()}>
+                    <i className="fas fa-plus fa-sm text-white-50"></i> Add New Tag
+                </button>
+            </div>
 
-    try {
-      setLoading(true);
-      setError('');
-      
-     await axiosInstance.delete(`/tags/${tagId}`); // Dəyişdirildi
-      fetchTags();
-    } catch (error) {
-      console.error('Error deleting tag:', error);
-      setError(error.response?.data?.message || 'Failed to delete tag');
-    } finally {
-      setLoading(false);
-    }
-  };
+            {error && <div className="alert alert-danger">{error}</div>}
 
-  // Handle key press for adding tag
-  const handleKeyPress = (event) => {
-    if (event.key === 'Enter') {
-      handleAddTag();
-    }
-  };
+            <div className="card shadow mb-4">
+                <div className="card-header py-3">
+                    <h6 className="m-0 font-weight-bold text-primary">Tags List</h6>
+                </div>
+                <div className="card-body">
+                    <div className="table-responsive">
+                        {loading ? <p>Loading...</p> : (
+                            <table className="table table-bordered" id="dataTable" width="100%" cellSpacing="0">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Name</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {tags.map(tag => (
+                                        <tr key={tag.id}>
+                                            <td>{tag.id}</td>
+                                            <td>{tag.name}</td>
+                                            <td>
+                                                <button className="btn btn-warning btn-sm mr-2" onClick={() => handleShowModal(tag)}>
+                                                    <i className="fas fa-edit"></i>
+                                                </button>
+                                                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(tag.id)}>
+                                                    <i className="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                </div>
+            </div>
 
-  return (
-    <Box>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Tag Management
-      </Typography>
+            {/* Bootstrap Modal */}
+            <div className={`modal fade ${showModal ? 'show d-block' : ''}`} tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                <div className="modal-dialog">
+                    <div className="modal-content">
+                        <div className="modal-header">
+                            <h5 className="modal-title">{isEditing ? 'Edit Tag' : 'Add Tag'}</h5>
+                            <button type="button" className="close" onClick={handleCloseModal}>
+                                <span>&times;</span>
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmit(onSubmit)}>
+                            <div className="modal-body">
+                                <div className="form-group">
+                                    <label htmlFor="name">Tag Name</label>
+                                    <input
+                                        type="text"
+                                        className={`form-control ${errors.name ? 'is-invalid' : ''}`}
+                                        id="name"
+                                        {...register('name', { required: 'Tag name is required' })}
+                                    />
+                                    {errors.name && <div className="invalid-feedback">{errors.name.message}</div>}
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>Close</button>
+                                <button type="submit" className="btn btn-primary">Save changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-          {error}
-        </Alert>
-      )}
-
-      {/* Add Tag Section */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Add New Tag
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-          <TextField
-            label="Tag Name"
-            value={newTagName}
-            onChange={(e) => setNewTagName(e.target.value)}
-            onKeyPress={handleKeyPress}
-            fullWidth
-            disabled={loading}
-            placeholder="Enter tag name..."
-          />
-          <Button
-            variant="contained"
-            startIcon={loading ? <CircularProgress size={20} /> : <AddIcon />}
-            onClick={handleAddTag}
-            disabled={loading || !newTagName.trim()}
-          >
-            Add Tag
-          </Button>
-        </Box>
-      </Paper>
-
-      {/* Tags List */}
-      <Paper>
-        <Box sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            Existing Tags ({tags.length})
-          </Typography>
-        </Box>
-        <Divider />
-        
-        {loading && tags.length === 0 ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-            <CircularProgress />
-          </Box>
-        ) : tags.length === 0 ? (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-            <Typography variant="body1" color="text.secondary">
-              No tags found. Add your first tag above.
-            </Typography>
-          </Box>
-        ) : (
-          <List>
-            {tags.map((tag, index) => (
-              <React.Fragment key={tag.id}>
-                <ListItem>
-                  <ListItemText
-                    primary={tag.name}
-                    secondary={`ID: ${tag.id}`}
-                  />
-                  <ListItemSecondaryAction>
-                    <IconButton
-                      edge="end"
-                      aria-label="delete"
-                      onClick={() => handleDeleteTag(tag.id, tag.name)}
-                      disabled={loading}
-                      color="error"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </ListItemSecondaryAction>
-                </ListItem>
-                {index < tags.length - 1 && <Divider />}
-              </React.Fragment>
-            ))}
-          </List>
-        )}
-      </Paper>
-    </Box>
-  );
+        </div>
+    );
 };
 
 export default TagManagement;

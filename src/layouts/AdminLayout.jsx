@@ -36,18 +36,20 @@ const AdminLayout = () => {
           </Link>
         </li>
         <li className="nav-item">
+          <Link className="nav-link" to="/reviews"> {/* YENİ */}
+            <i className="fas fa-fw fa-comments"></i>
+            <span>Reviews</span>
+          </Link>
+        </li>
+        <hr className="sidebar-divider" />
+        <div className="sidebar-heading">Catalog & Store</div>
+        <li className="nav-item">
           <Link className="nav-link" to="/games">
              <i className="fas fa-fw fa-gamepad"></i>
             <span>Games</span>
           </Link>
         </li>
-         <li className="nav-item">
-          <Link className="nav-link" to="/campaigns">
-             <i className="fas fa-fw fa-bullhorn"></i>
-            <span>Campaigns</span>
-          </Link>
-        </li>
-         <li className="nav-item">
+        <li className="nav-item">
           <Link className="nav-link" to="/genres">
             <i className="fas fa-fw fa-theater-masks"></i>
             <span>Genres</span>
@@ -57,6 +59,30 @@ const AdminLayout = () => {
           <Link className="nav-link" to="/tags">
             <i className="fas fa-fw fa-tags"></i>
             <span>Tags</span>
+          </Link>
+        </li>
+         <li className="nav-item">
+          <Link className="nav-link" to="/campaigns">
+             <i className="fas fa-fw fa-bullhorn"></i>
+            <span>Campaigns</span>
+          </Link>
+        </li>
+        <li className="nav-item">
+          <Link className="nav-link" to="/coupons">
+            <i className="fas fa-fw fa-ticket-alt"></i>
+            <span>Coupons</span>
+          </Link>
+        </li>
+        <li className="nav-item">
+          <Link className="nav-link" to="/vouchers">
+            <i className="fas fa-fw fa-money-check-alt"></i>
+            <span>Vouchers</span>
+          </Link>
+        </li>
+        <li className="nav-item"> {/* YENİ */}
+          <Link className="nav-link" to="/orders">
+            <i className="fas fa-fw fa-shopping-cart"></i>
+            <span>Orders</span>
           </Link>
         </li>
         <hr className="sidebar-divider d-none d-md-block" />

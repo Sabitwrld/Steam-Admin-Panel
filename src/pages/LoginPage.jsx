@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
+import { GoogleLogin } from '@react-oauth/google';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -12,39 +13,64 @@ const LoginPage = () => {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm({
-    defaultValues: {
-      email: '',
-      password: '',
-    },
-  });
+  } = useForm();
+
+  const handleBackendLogin = async (token) => {
+    localStorage.setItem('authToken', token);
+    // Tokeni yoxlamaq üçün kiçik bir sorğu göndərə bilərik və ya birbaşa yönləndirə bilərik.
+    // Təhlükəsizlik üçün istifadəçi məlumatlarını alıb rolu yoxlamaq daha yaxşıdır.
+    try {
+        const response = await axiosInstance.get('/auth/me'); // Backend-də belə bir endpoint olmalıdır.
+        if (response.data.roles && response.data.roles.includes('Admin')) {
+            navigate('/dashboard');
+        } else {
+             setErrorMessage('Access denied. Admin role required.');
+             localStorage.removeItem('authToken');
+        }
+    } catch(e) {
+        setErrorMessage('Failed to verify user role.');
+        localStorage.removeItem('authToken');
+    }
+  };
+
 
   const onSubmit = async (data) => {
     setIsLoading(true);
     setErrorMessage('');
-
     try {
-      const response = await axiosInstance.post('/auth/login', {
-        email: data.email,
-        password: data.password,
-      });
-
-      if (response.status === 200) {
-        const { user, token } = response.data;
-        if (user.roles && user.roles.includes('Admin')) {
-          localStorage.setItem('authToken', token);
-          navigate('/dashboard');
-        } else {
-          setErrorMessage('Access denied. Admin role required.');
-        }
+      const response = await axiosInstance.post('/auth/login', data);
+      if (response.status === 200 && response.data.token) {
+        handleBackendLogin(response.data.token);
       }
     } catch (error) {
-      console.error('Login error:', error);
       const errorMsg = error.response?.data?.message || 'Invalid email or password.';
       setErrorMessage(errorMsg);
     } finally {
       setIsLoading(false);
     }
+  };
+  
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setIsLoading(true);
+    setErrorMessage('');
+    try {
+        const response = await axiosInstance.post('/auth/externallogin', {
+            provider: 'Google',
+            idToken: credentialResponse.credential,
+        });
+        if (response.status === 200 && response.data.token) {
+            handleBackendLogin(response.data.token);
+        }
+    } catch (error) {
+        const errorMsg = error.response?.data?.message || 'Google login failed.';
+        setErrorMessage(errorMsg);
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  const handleGoogleError = () => {
+    setErrorMessage('Google login failed. Please try again.');
   };
 
   return (
@@ -62,7 +88,7 @@ const LoginPage = () => {
                         <h1 className="h4 text-gray-900 mb-4">Welcome Back!</h1>
                       </div>
                       {errorMessage && (
-                        <div className="alert alert-danger text-center">{errorMessage}</div>
+                        <div className="alert alert-danger text-center small p-2 mb-3">{errorMessage}</div>
                       )}
                       <form className="user" onSubmit={handleSubmit(onSubmit)}>
                         <div className="form-group">
@@ -70,51 +96,32 @@ const LoginPage = () => {
                             type="email"
                             className={`form-control form-control-user ${errors.email ? 'is-invalid' : ''}`}
                             placeholder="Enter Email Address..."
-                            {...register('email', {
-                              required: 'Email is required',
-                              pattern: {
-                                value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                                message: 'Invalid email address',
-                              },
-                            })}
+                            {...register('email', { required: 'Email is required' })}
                           />
-                           {errors.email && <div className="invalid-feedback text-center small">{errors.email.message}</div>}
                         </div>
                         <div className="form-group">
                           <input
                             type="password"
                             className={`form-control form-control-user ${errors.password ? 'is-invalid' : ''}`}
                             placeholder="Password"
-                            {...register('password', {
-                              required: 'Password is required',
-                            })}
+                            {...register('password', { required: 'Password is required' })}
                           />
-                           {errors.password && <div className="invalid-feedback text-center small">{errors.password.message}</div>}
-                        </div>
-                        <div className="form-group">
-                          <div className="custom-control custom-checkbox small">
-                            <input type="checkbox" className="custom-control-input" id="customCheck" />
-                            <label className="custom-control-label" htmlFor="customCheck">Remember Me</label>
-                          </div>
                         </div>
                         <button type="submit" className="btn btn-primary btn-user btn-block" disabled={isLoading}>
                           {isLoading ? 'Logging in...' : 'Login'}
                         </button>
                         <hr />
-                        {/* --- DƏYİŞİKLİK BURADADIR --- */}
-                        <a href="#" className="btn btn-google btn-user btn-block">
-                          <i className="fab fa-google fa-fw"></i> Login with Google
-                        </a>
-                        <a href="#" className="btn btn-facebook btn-user btn-block">
-                          <i className="fab fa-facebook-f fa-fw"></i> Login with Facebook
-                        </a>
+                         <div className="d-flex justify-content-center">
+                            <GoogleLogin
+                                onSuccess={handleGoogleSuccess}
+                                onError={handleGoogleError}
+                                useOneTap
+                            />
+                         </div>
                       </form>
                       <hr />
                       <div className="text-center">
-                        <a className="small" href="#">Forgot Password?</a>
-                      </div>
-                      <div className="text-center">
-                        <a className="small" href="#">Create an Account!</a>
+                        <Link className="small" to="/forgot-password">Forgot Password?</Link>
                       </div>
                     </div>
                   </div>
